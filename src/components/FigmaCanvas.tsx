@@ -1,16 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
+
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as fabric from 'fabric';
 import { 
-  MousePointer2, 
-  Square, 
-  Circle, 
-  Triangle, 
-  Type, 
-  Pencil, 
-  Eraser,
-  Move,
-  Hand,
+  MousePointer,
+  Square,
+  Circle,
+  Type,
+  Pencil,
   ZoomIn,
   ZoomOut,
   Undo,
@@ -18,75 +16,61 @@ import {
   Trash2,
   Copy,
   Download,
-  Settings,
-  Layers,
-  Palette,
-  ArrowRight,
+  Share2,
+  Hand,
+  Triangle,
   Minus,
-  RotateCw,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
-  Database,
-  Server,
-  Smartphone,
-  Globe,
-  Component,
-  Box
+  Grid3X3,
+  ArrowRight
 } from 'lucide-react';
 
-export type Tool = 
+export type FigmaTool = 
   | 'select' 
   | 'hand'
-  | 'pen' 
-  | 'eraser' 
   | 'rectangle' 
-  | 'circle' 
-  | 'triangle' 
-  | 'line' 
-  | 'text'
+  | 'ellipse'
+  | 'triangle'
+  | 'line'
   | 'arrow'
+  | 'text'
+  | 'pen'
   | 'uml-class'
   | 'uml-interface'
-  | 'uml-abstract'
-  | 'uml-enum'
-  | 'component'
-  | 'service-api'
-  | 'service-db'
-  | 'service-microservice'
-  | 'service-frontend';
+  | 'uml-abstract';
 
 interface FigmaCanvasProps {
   projectCode: string;
+  onSave?: (data: any) => void;
 }
 
-const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
+const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode, onSave }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   
   // Estados principais
-  const [currentTool, setCurrentTool] = useState<Tool>('select');
+  const [currentTool, setCurrentTool] = useState<FigmaTool>('select');
+  const [isDrawing, setIsDrawing] = useState(false);
   const [canvasHistory, setCanvasHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [zoom, setZoom] = useState(100);
   
-  // Estados de configuração
-  const [selectedColor, setSelectedColor] = useState('#3B82F6');
-  const [brushSize, setBrushSize] = useState(2);
+  // Estados de UI
+  const [selectedColor, setSelectedColor] = useState('#0066ff');
+  const [fillColor, setFillColor] = useState('#ffffff');
+  const [strokeWidth, setStrokeWidth] = useState(2);
   const [fontSize, setFontSize] = useState(16);
-  const [selectedObjects, setSelectedObjects] = useState<fabric.Object[]>([]);
+  const [zoom, setZoom] = useState(100);
+  const [showGrid, setShowGrid] = useState(false);
   
-  // Estados da interface
-  const [showLayers, setShowLayers] = useState(false);
-  const [showProperties, setShowProperties] = useState(true);
+  // Estados de seleção
+  const [selectedObjects, setSelectedObjects] = useState<fabric.Object[]>([]);
+  const [showProperties, setShowProperties] = useState(false);
 
   // Inicializar Fabric.js
   useEffect(() => {
     if (canvasRef.current && !fabricCanvasRef.current) {
       const canvas = new fabric.Canvas(canvasRef.current, {
-        width: window.innerWidth - 80,
-        height: window.innerHeight - 60,
+        width: window.innerWidth - 120,
+        height: window.innerHeight - 80,
         backgroundColor: '#ffffff',
         selection: true,
         preserveObjectStacking: true,
@@ -98,12 +82,13 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
       canvas.on('mouse:down', handleMouseDown);
       canvas.on('mouse:move', handleMouseMove);
       canvas.on('mouse:up', handleMouseUp);
+      canvas.on('path:created', saveCanvasState);
       canvas.on('object:added', saveCanvasState);
       canvas.on('object:removed', saveCanvasState);
       canvas.on('object:modified', saveCanvasState);
       canvas.on('selection:created', handleSelection);
       canvas.on('selection:updated', handleSelection);
-      canvas.on('selection:cleared', handleSelectionCleared);
+      canvas.on('selection:cleared', () => setSelectedObjects([]));
 
       // Estado inicial
       saveCanvasState();
@@ -122,21 +107,27 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
       newHistory.push(state);
       setCanvasHistory(newHistory);
       setHistoryIndex(newHistory.length - 1);
+      
+      // Callback para salvar no Firebase
+      if (onSave) {
+        onSave({ canvasData: state, lastModified: new Date().toISOString() });
+      }
     }
-  }, [canvasHistory, historyIndex]);
+  }, [canvasHistory, historyIndex, onSave]);
 
   // Handlers de eventos
   const handleMouseDown = (e: fabric.TEvent) => {
     if (!fabricCanvasRef.current) return;
     
     const pointer = fabricCanvasRef.current.getPointer(e.e);
+    setIsDrawing(true);
 
     switch (currentTool) {
       case 'rectangle':
         createRectangle(pointer.x, pointer.y);
         break;
-      case 'circle':
-        createCircle(pointer.x, pointer.y);
+      case 'ellipse':
+        createEllipse(pointer.x, pointer.y);
         break;
       case 'triangle':
         createTriangle(pointer.x, pointer.y);
@@ -156,53 +147,53 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
       case 'uml-interface':
         createUMLInterface(pointer.x, pointer.y);
         break;
-      case 'component':
-        createComponent(pointer.x, pointer.y);
-        break;
-      case 'service-api':
-        createServiceIcon(pointer.x, pointer.y, 'API', '#3B82F6');
-        break;
-      case 'service-db':
-        createServiceIcon(pointer.x, pointer.y, 'DB', '#10B981');
+      case 'uml-abstract':
+        createUMLAbstract(pointer.x, pointer.y);
         break;
       case 'pen':
-        fabricCanvasRef.current.isDrawingMode = true;
-        if (fabricCanvasRef.current.freeDrawingBrush) {
-          fabricCanvasRef.current.freeDrawingBrush.width = brushSize;
-          fabricCanvasRef.current.freeDrawingBrush.color = selectedColor;
-        }
+        enableFreeDrawing();
         break;
-      case 'eraser':
-        fabricCanvasRef.current.isDrawingMode = true;
-        if (fabricCanvasRef.current.freeDrawingBrush) {
-          fabricCanvasRef.current.freeDrawingBrush.width = brushSize * 2;
-          fabricCanvasRef.current.freeDrawingBrush.color = '#ffffff';
-        }
+      case 'hand':
+        fabricCanvasRef.current.isDragging = true;
+        fabricCanvasRef.current.selection = false;
         break;
       default:
         fabricCanvasRef.current.isDrawingMode = false;
+        fabricCanvasRef.current.selection = true;
         break;
     }
   };
 
-  const handleMouseMove = () => {
-    // Implementar lógica de movimento se necessário
+  const handleMouseMove = (e: fabric.TEvent) => {
+    if (!isDrawing || !fabricCanvasRef.current) return;
+    
+    if (currentTool === 'hand' && fabricCanvasRef.current.isDragging) {
+      const pointer = fabricCanvasRef.current.getPointer(e.e);
+      const delta = {
+        x: pointer.x - (fabricCanvasRef.current.lastPosX || 0),
+        y: pointer.y - (fabricCanvasRef.current.lastPosY || 0)
+      };
+      
+      const vpt = fabricCanvasRef.current.viewportTransform!;
+      vpt[4] += delta.x;
+      vpt[5] += delta.y;
+      fabricCanvasRef.current.requestRenderAll();
+    }
   };
 
   const handleMouseUp = () => {
+    setIsDrawing(false);
     if (fabricCanvasRef.current) {
-      fabricCanvasRef.current.isDrawingMode = currentTool === 'pen' || currentTool === 'eraser';
+      fabricCanvasRef.current.isDragging = false;
+      fabricCanvasRef.current.selection = currentTool === 'select';
+      fabricCanvasRef.current.isDrawingMode = currentTool === 'pen';
     }
   };
 
   const handleSelection = (e: any) => {
-    if (e.selected) {
-      setSelectedObjects(e.selected);
-    }
-  };
-
-  const handleSelectionCleared = () => {
-    setSelectedObjects([]);
+    const objects = e.selected || [];
+    setSelectedObjects(objects);
+    setShowProperties(objects.length > 0);
   };
 
   // Funções de criação de elementos
@@ -212,11 +203,11 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
     const rect = new fabric.Rect({
       left: x,
       top: y,
-      width: 120,
-      height: 80,
-      fill: selectedColor + '20',
+      width: 100,
+      height: 100,
+      fill: fillColor,
       stroke: selectedColor,
-      strokeWidth: 2,
+      strokeWidth: strokeWidth,
       rx: 8,
       ry: 8,
     });
@@ -225,20 +216,21 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
     fabricCanvasRef.current.setActiveObject(rect);
   };
 
-  const createCircle = (x: number, y: number) => {
+  const createEllipse = (x: number, y: number) => {
     if (!fabricCanvasRef.current) return;
     
-    const circle = new fabric.Circle({
+    const ellipse = new fabric.Ellipse({
       left: x,
       top: y,
-      radius: 50,
-      fill: selectedColor + '20',
+      rx: 50,
+      ry: 30,
+      fill: fillColor,
       stroke: selectedColor,
-      strokeWidth: 2,
+      strokeWidth: strokeWidth,
     });
     
-    fabricCanvasRef.current.add(circle);
-    fabricCanvasRef.current.setActiveObject(circle);
+    fabricCanvasRef.current.add(ellipse);
+    fabricCanvasRef.current.setActiveObject(ellipse);
   };
 
   const createTriangle = (x: number, y: number) => {
@@ -247,11 +239,11 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
     const triangle = new fabric.Triangle({
       left: x,
       top: y,
-      width: 100,
-      height: 100,
-      fill: selectedColor + '20',
+      width: 80,
+      height: 80,
+      fill: fillColor,
       stroke: selectedColor,
-      strokeWidth: 2,
+      strokeWidth: strokeWidth,
     });
     
     fabricCanvasRef.current.add(triangle);
@@ -261,9 +253,9 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
   const createLine = (x: number, y: number) => {
     if (!fabricCanvasRef.current) return;
     
-    const line = new fabric.Line([x, y, x + 150, y], {
+    const line = new fabric.Line([x, y, x + 100, y], {
       stroke: selectedColor,
-      strokeWidth: brushSize,
+      strokeWidth: strokeWidth,
     });
     
     fabricCanvasRef.current.add(line);
@@ -273,9 +265,9 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
   const createArrow = (x: number, y: number) => {
     if (!fabricCanvasRef.current) return;
     
-    const arrowLine = new fabric.Line([x, y, x + 100, y], {
+    const line = new fabric.Line([x, y, x + 100, y], {
       stroke: selectedColor,
-      strokeWidth: brushSize,
+      strokeWidth: strokeWidth,
     });
 
     const arrowHead = new fabric.Triangle({
@@ -289,11 +281,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
       originY: 'center',
     });
 
-    const group = new fabric.Group([arrowLine, arrowHead], {
-      left: x,
-      top: y,
-    });
-    
+    const group = new fabric.Group([line, arrowHead]);
     fabricCanvasRef.current.add(group);
     fabricCanvasRef.current.setActiveObject(group);
   };
@@ -301,10 +289,10 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
   const createText = (x: number, y: number) => {
     if (!fabricCanvasRef.current) return;
     
-    const text = new fabric.IText('Clique para editar', {
+    const text = new fabric.IText('Texto', {
       left: x,
       top: y,
-      fontSize,
+      fontSize: fontSize,
       fill: selectedColor,
       fontFamily: 'Inter, sans-serif',
     });
@@ -313,6 +301,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
     fabricCanvasRef.current.setActiveObject(text);
   };
 
+  // UML Components
   const createUMLClass = (x: number, y: number) => {
     if (!fabricCanvasRef.current) return;
     
@@ -320,7 +309,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
       left: x,
       top: y,
       width: 200,
-      height: 120,
+      height: 150,
       fill: '#ffffff',
       stroke: selectedColor,
       strokeWidth: 2,
@@ -328,43 +317,39 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
       ry: 4,
     });
 
-    const className = new fabric.IText('ClassName', {
+    const title = new fabric.IText('ClassName', {
       left: x + 10,
-      top: y + 8,
+      top: y + 10,
       fontSize: 14,
       fontWeight: 'bold',
       fill: '#000000',
     });
 
-    const separator1 = new fabric.Line([x, y + 30, x + 200, y + 30], {
+    const separator1 = new fabric.Line([x, y + 35, x + 200, y + 35], {
       stroke: selectedColor,
       strokeWidth: 1,
     });
 
     const attributes = new fabric.IText('- attribute1: String\n- attribute2: Number', {
       left: x + 10,
-      top: y + 35,
+      top: y + 45,
       fontSize: 12,
       fill: '#000000',
     });
 
-    const separator2 = new fabric.Line([x, y + 65, x + 200, y + 65], {
+    const separator2 = new fabric.Line([x, y + 90, x + 200, y + 90], {
       stroke: selectedColor,
       strokeWidth: 1,
     });
 
     const methods = new fabric.IText('+ method1(): void\n+ method2(): String', {
       left: x + 10,
-      top: y + 70,
+      top: y + 100,
       fontSize: 12,
       fill: '#000000',
     });
 
-    const group = new fabric.Group([container, separator1, separator2, className, attributes, methods], {
-      left: x,
-      top: y,
-    });
-    
+    const group = new fabric.Group([container, title, separator1, attributes, separator2, methods]);
     fabricCanvasRef.current.add(group);
     fabricCanvasRef.current.setActiveObject(group);
   };
@@ -376,7 +361,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
       left: x,
       top: y,
       width: 200,
-      height: 90,
+      height: 120,
       fill: '#ffffff',
       stroke: selectedColor,
       strokeWidth: 2,
@@ -386,22 +371,23 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
     });
 
     const stereotype = new fabric.IText('<<interface>>', {
-      left: x + 75,
+      left: x + 70,
       top: y + 5,
       fontSize: 10,
       fontStyle: 'italic',
-      fill: '#000000',
+      fill: '#666666',
+      textAlign: 'center',
     });
 
-    const interfaceName = new fabric.IText('InterfaceName', {
+    const title = new fabric.IText('InterfaceName', {
       left: x + 10,
-      top: y + 20,
+      top: y + 25,
       fontSize: 14,
       fontWeight: 'bold',
       fill: '#000000',
     });
 
-    const separator = new fabric.Line([x, y + 40, x + 200, y + 40], {
+    const separator = new fabric.Line([x, y + 50, x + 200, y + 50], {
       stroke: selectedColor,
       strokeWidth: 1,
       strokeDashArray: [5, 5],
@@ -409,85 +395,86 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
 
     const methods = new fabric.IText('+ method1(): void\n+ method2(): String', {
       left: x + 10,
-      top: y + 45,
+      top: y + 60,
       fontSize: 12,
       fill: '#000000',
     });
 
-    const group = new fabric.Group([container, separator, stereotype, interfaceName, methods], {
-      left: x,
-      top: y,
-    });
-    
+    const group = new fabric.Group([container, stereotype, title, separator, methods]);
     fabricCanvasRef.current.add(group);
     fabricCanvasRef.current.setActiveObject(group);
   };
 
-  const createComponent = (x: number, y: number) => {
+  const createUMLAbstract = (x: number, y: number) => {
     if (!fabricCanvasRef.current) return;
     
     const container = new fabric.Rect({
       left: x,
       top: y,
-      width: 150,
-      height: 80,
-      fill: '#F3F4F6',
+      width: 220,
+      height: 140,
+      fill: '#ffffff',
       stroke: selectedColor,
       strokeWidth: 2,
-      rx: 8,
-      ry: 8,
+      rx: 4,
+      ry: 4,
     });
 
-    const componentText = new fabric.IText('Component', {
-      left: x + 75,
-      top: y + 30,
-      fontSize: 14,
-      fontWeight: '500',
-      fill: '#000000',
+    const stereotype = new fabric.IText('<<abstract>>', {
+      left: x + 80,
+      top: y + 5,
+      fontSize: 10,
+      fontStyle: 'italic',
+      fill: '#666666',
       textAlign: 'center',
-      originX: 'center',
-      originY: 'center',
     });
 
-    const group = new fabric.Group([container, componentText], {
-      left: x,
-      top: y,
+    const title = new fabric.IText('AbstractClass', {
+      left: x + 10,
+      top: y + 25,
+      fontSize: 14,
+      fontWeight: 'bold',
+      fontStyle: 'italic',
+      fill: '#000000',
     });
-    
+
+    const separator1 = new fabric.Line([x, y + 50, x + 220, y + 50], {
+      stroke: selectedColor,
+      strokeWidth: 1,
+    });
+
+    const attributes = new fabric.IText('# protectedAttr: String', {
+      left: x + 10,
+      top: y + 60,
+      fontSize: 12,
+      fill: '#000000',
+    });
+
+    const separator2 = new fabric.Line([x, y + 85, x + 220, y + 85], {
+      stroke: selectedColor,
+      strokeWidth: 1,
+    });
+
+    const methods = new fabric.IText('+ concreteMethod(): void\n+ abstractMethod(): void', {
+      left: x + 10,
+      top: y + 95,
+      fontSize: 12,
+      fill: '#000000',
+    });
+
+    const group = new fabric.Group([container, stereotype, title, separator1, attributes, separator2, methods]);
     fabricCanvasRef.current.add(group);
     fabricCanvasRef.current.setActiveObject(group);
   };
 
-  const createServiceIcon = (x: number, y: number, label: string, color: string) => {
-    if (!fabricCanvasRef.current) return;
-    
-    const container = new fabric.Circle({
-      left: x,
-      top: y,
-      radius: 40,
-      fill: color,
-      stroke: color,
-      strokeWidth: 2,
-    });
-
-    const serviceText = new fabric.IText(label, {
-      left: x,
-      top: y,
-      fontSize: 16,
-      fontWeight: 'bold',
-      fill: '#ffffff',
-      textAlign: 'center',
-      originX: 'center',
-      originY: 'center',
-    });
-
-    const group = new fabric.Group([container, serviceText], {
-      left: x,
-      top: y,
-    });
-    
-    fabricCanvasRef.current.add(group);
-    fabricCanvasRef.current.setActiveObject(group);
+  const enableFreeDrawing = () => {
+    if (fabricCanvasRef.current) {
+      fabricCanvasRef.current.isDrawingMode = true;
+      if (fabricCanvasRef.current.freeDrawingBrush) {
+        fabricCanvasRef.current.freeDrawingBrush.width = strokeWidth;
+        fabricCanvasRef.current.freeDrawingBrush.color = selectedColor;
+      }
+    }
   };
 
   // Funções de controle
@@ -575,201 +562,151 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
     }
   };
 
-  // Ferramentas organizadas por categoria
-  const basicTools = [
-    { id: 'select', icon: MousePointer2, label: 'Selecionar' },
-    { id: 'hand', icon: Hand, label: 'Mover Tela' },
-    { id: 'pen', icon: Pencil, label: 'Desenhar' },
-    { id: 'eraser', icon: Eraser, label: 'Borracha' },
-    { id: 'text', icon: Type, label: 'Texto' },
-  ];
-
-  const shapeTools = [
+  // Tools definition
+  const tools = [
+    { id: 'select', icon: MousePointer, label: 'Selecionar' },
+    { id: 'hand', icon: Hand, label: 'Mover tela' },
     { id: 'rectangle', icon: Square, label: 'Retângulo' },
-    { id: 'circle', icon: Circle, label: 'Círculo' },
+    { id: 'ellipse', icon: Circle, label: 'Elipse' },
     { id: 'triangle', icon: Triangle, label: 'Triângulo' },
     { id: 'line', icon: Minus, label: 'Linha' },
     { id: 'arrow', icon: ArrowRight, label: 'Seta' },
+    { id: 'text', icon: Type, label: 'Texto' },
+    { id: 'pen', icon: Pencil, label: 'Desenho livre' },
   ];
 
   const umlTools = [
-    { id: 'uml-class', icon: Box, label: 'Classe UML' },
-    { id: 'uml-interface', icon: Component, label: 'Interface UML' },
-  ];
-
-  const serviceTools = [
-    { id: 'service-api', icon: Globe, label: 'API' },
-    { id: 'service-db', icon: Database, label: 'Database' },
-    { id: 'service-microservice', icon: Server, label: 'Microserviço' },
-    { id: 'service-frontend', icon: Smartphone, label: 'Frontend' },
+    { id: 'uml-class', icon: Square, label: 'Classe UML' },
+    { id: 'uml-interface', icon: Square, label: 'Interface UML' },
+    { id: 'uml-abstract', icon: Square, label: 'Classe Abstrata' },
   ];
 
   const colors = [
-    '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899',
-    '#06B6D4', '#84CC16', '#F97316', '#6B7280', '#000000', '#FFFFFF'
+    '#0066ff', '#ff0066', '#00ff66', '#ffcc00', '#ff6600', '#6600ff',
+    '#00ffff', '#ff00ff', '#66ff00', '#ff0000', '#000000', '#ffffff'
   ];
 
   return (
-    <div className="h-full bg-slate-100 flex">
-      {/* Toolbar Esquerda */}
-      <div className="w-20 bg-slate-800 flex flex-col items-center py-4 gap-2">
-        {/* Ferramentas Básicas */}
-        {basicTools.map((tool) => (
+    <div className="flex h-screen bg-gray-50">
+      {/* Toolbar esquerda */}
+      <div className="w-16 bg-white border-r border-gray-200 flex flex-col items-center py-4 space-y-2">
+        {tools.map((tool) => (
           <button
             key={tool.id}
-            onClick={() => setCurrentTool(tool.id as Tool)}
-            className={`p-3 rounded-lg transition-colors ${
+            onClick={() => setCurrentTool(tool.id as FigmaTool)}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
               currentTool === tool.id
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-slate-700'
+                ? 'bg-blue-500 text-white'
+                : 'hover:bg-gray-100 text-gray-600'
             }`}
             title={tool.label}
           >
-            <tool.icon className="w-5 h-5" />
+            <tool.icon size={20} />
           </button>
         ))}
-
-        <div className="w-8 h-px bg-slate-600 my-2" />
-
-        {/* Formas */}
-        {shapeTools.map((tool) => (
-          <button
-            key={tool.id}
-            onClick={() => setCurrentTool(tool.id as Tool)}
-            className={`p-3 rounded-lg transition-colors ${
-              currentTool === tool.id
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-slate-700'
-            }`}
-            title={tool.label}
-          >
-            <tool.icon className="w-5 h-5" />
-          </button>
-        ))}
-
-        <div className="w-8 h-px bg-slate-600 my-2" />
-
-        {/* UML */}
+        
+        <div className="w-8 h-px bg-gray-200 my-2" />
+        
         {umlTools.map((tool) => (
           <button
             key={tool.id}
-            onClick={() => setCurrentTool(tool.id as Tool)}
-            className={`p-3 rounded-lg transition-colors ${
+            onClick={() => setCurrentTool(tool.id as FigmaTool)}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
               currentTool === tool.id
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-slate-700'
+                ? 'bg-blue-500 text-white'
+                : 'hover:bg-gray-100 text-gray-600'
             }`}
             title={tool.label}
           >
-            <tool.icon className="w-5 h-5" />
+            <tool.icon size={16} />
           </button>
         ))}
-
-        <div className="w-8 h-px bg-slate-600 my-2" />
-
-        {/* Serviços */}
-        {serviceTools.map((tool) => (
-          <button
-            key={tool.id}
-            onClick={() => setCurrentTool(tool.id as Tool)}
-            className={`p-3 rounded-lg transition-colors ${
-              currentTool === tool.id
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-slate-700'
-            }`}
-            title={tool.label}
-          >
-            <tool.icon className="w-5 h-5" />
-          </button>
-        ))}
-
-        <div className="flex-1" />
-
-        {/* Controles */}
-        <button
-          onClick={() => setShowLayers(!showLayers)}
-          className="p-3 rounded-lg text-gray-400 hover:text-white hover:bg-slate-700 transition-colors"
-          title="Camadas"
-        >
-          <Layers className="w-5 h-5" />
-        </button>
-
-        <button
-          onClick={() => setShowProperties(!showProperties)}
-          className="p-3 rounded-lg text-gray-400 hover:text-white hover:bg-slate-700 transition-colors"
-          title="Propriedades"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
       </div>
 
-      {/* Área Principal */}
+      {/* Área principal */}
       <div className="flex-1 flex flex-col">
-        {/* Toolbar Superior */}
-        <div className="h-12 bg-white border-b border-slate-200 flex items-center justify-between px-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
+        {/* Toolbar superior */}
+        <div className="h-12 bg-white border-b border-gray-200 flex items-center justify-between px-4">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
               <button
                 onClick={undo}
                 disabled={historyIndex <= 0}
-                className="p-2 rounded-lg text-gray-600 hover:bg-slate-100 disabled:opacity-30 transition-colors"
+                className="p-1 rounded hover:bg-gray-100 disabled:opacity-50"
+                title="Desfazer"
               >
-                <Undo className="w-4 h-4" />
+                <Undo size={16} />
               </button>
               <button
                 onClick={redo}
                 disabled={historyIndex >= canvasHistory.length - 1}
-                className="p-2 rounded-lg text-gray-600 hover:bg-slate-100 disabled:opacity-30 transition-colors"
+                className="p-1 rounded hover:bg-gray-100 disabled:opacity-50"
+                title="Refazer"
               >
-                <Redo className="w-4 h-4" />
+                <Redo size={16} />
               </button>
             </div>
 
-            <div className="w-px h-6 bg-slate-300" />
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={duplicateSelected}
-                className="p-2 rounded-lg text-gray-600 hover:bg-slate-100 transition-colors"
-              >
-                <Copy className="w-4 h-4" />
-              </button>
-              <button
-                onClick={deleteSelected}
-                className="p-2 rounded-lg text-gray-600 hover:bg-slate-100 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="w-px h-6 bg-slate-300" />
-
-            <div className="flex items-center gap-2">
+            <div className="flex items-center space-x-2">
               <button
                 onClick={zoomOut}
-                className="p-2 rounded-lg text-gray-600 hover:bg-slate-100 transition-colors"
+                className="p-1 rounded hover:bg-gray-100"
+                title="Zoom Out"
               >
-                <ZoomOut className="w-4 h-4" />
+                <ZoomOut size={16} />
               </button>
               <span className="text-sm text-gray-600 min-w-[60px] text-center">
                 {zoom}%
               </span>
               <button
                 onClick={zoomIn}
-                className="p-2 rounded-lg text-gray-600 hover:bg-slate-100 transition-colors"
+                className="p-1 rounded hover:bg-gray-100"
+                title="Zoom In"
               >
-                <ZoomIn className="w-4 h-4" />
+                <ZoomIn size={16} />
+              </button>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowGrid(!showGrid)}
+                className={`p-1 rounded ${showGrid ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
+                title="Grid"
+              >
+                <Grid3X3 size={16} />
               </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={duplicateSelected}
+              disabled={selectedObjects.length === 0}
+              className="p-1 rounded hover:bg-gray-100 disabled:opacity-50"
+              title="Duplicar"
+            >
+              <Copy size={16} />
+            </button>
+            <button
+              onClick={deleteSelected}
+              disabled={selectedObjects.length === 0}
+              className="p-1 rounded hover:bg-gray-100 disabled:opacity-50 text-red-600"
+              title="Deletar"
+            >
+              <Trash2 size={16} />
+            </button>
             <button
               onClick={exportCanvas}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+              className="p-1 rounded hover:bg-gray-100"
+              title="Exportar"
             >
-              <Download className="w-4 h-4" />
-              Exportar
+              <Download size={16} />
+            </button>
+            <button
+              className="p-1 rounded hover:bg-gray-100"
+              title="Compartilhar"
+            >
+              <Share2 size={16} />
             </button>
           </div>
         </div>
@@ -778,29 +715,27 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
         <div className="flex-1 relative overflow-hidden">
           <canvas
             ref={canvasRef}
-            className="absolute inset-0"
+            className="border-none outline-none"
+            style={{ cursor: currentTool === 'hand' ? 'grab' : 'default' }}
           />
         </div>
       </div>
 
-      {/* Painel de Propriedades */}
-      {showProperties && (
-        <div className="w-80 bg-white border-l border-slate-200 overflow-y-auto">
-          <div className="p-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Propriedades</h3>
-            
-            {/* Cor */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Cor
-              </label>
-              <div className="grid grid-cols-6 gap-2">
+      {/* Properties panel direita */}
+      {showProperties && selectedObjects.length > 0 && (
+        <div className="w-64 bg-white border-l border-gray-200 p-4">
+          <h3 className="font-semibold mb-4">Propriedades</h3>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Cor da borda</label>
+              <div className="flex flex-wrap gap-2">
                 {colors.map((color) => (
                   <button
                     key={color}
                     onClick={() => setSelectedColor(color)}
-                    className={`w-8 h-8 rounded border-2 transition-all ${
-                      selectedColor === color ? 'border-gray-900 scale-110' : 'border-gray-300'
+                    className={`w-6 h-6 rounded border-2 ${
+                      selectedColor === color ? 'border-gray-800' : 'border-gray-300'
                     }`}
                     style={{ backgroundColor: color }}
                   />
@@ -808,47 +743,49 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
               </div>
             </div>
 
-            {/* Tamanho do Pincel */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tamanho do Pincel: {brushSize}px
+            <div>
+              <label className="block text-sm font-medium mb-2">Cor de preenchimento</label>
+              <div className="flex flex-wrap gap-2">
+                {colors.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setFillColor(color)}
+                    className={`w-6 h-6 rounded border-2 ${
+                      fillColor === color ? 'border-gray-800' : 'border-gray-300'
+                    }`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Espessura da borda: {strokeWidth}px
               </label>
               <input
                 type="range"
-                min="1"
-                max="20"
-                value={brushSize}
-                onChange={(e) => setBrushSize(Number(e.target.value))}
+                min="0"
+                max="10"
+                value={strokeWidth}
+                onChange={(e) => setStrokeWidth(Number(e.target.value))}
                 className="w-full"
               />
             </div>
 
-            {/* Tamanho da Fonte */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tamanho da Fonte: {fontSize}px
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Tamanho da fonte: {fontSize}px
               </label>
               <input
                 type="range"
-                min="10"
+                min="8"
                 max="72"
                 value={fontSize}
                 onChange={(e) => setFontSize(Number(e.target.value))}
                 className="w-full"
               />
             </div>
-
-            {/* Informações da Seleção */}
-            {selectedObjects.length > 0 && (
-              <div className="mb-6 p-3 bg-blue-50 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">
-                  Selecionado
-                </h4>
-                <p className="text-sm text-blue-700">
-                  {selectedObjects.length} objeto(s) selecionado(s)
-                </p>
-              </div>
-            )}
           </div>
         </div>
       )}
