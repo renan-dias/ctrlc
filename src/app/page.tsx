@@ -1,10 +1,15 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth } from '@/lib/firebase';
+import Logo from '@/components/Logo';
+import AuthButton from '@/components/AuthButton';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
 import { markdown } from '@codemirror/lang-markdown';
+import { Plus, Code, Type, Trash2, Sun, Moon, Palette } from 'lucide-react';
 
 interface Block {
   id: number;
@@ -26,6 +31,7 @@ function getLanguage(filename: string) {
 }
 
 export default function Home() {
+  const [user] = useAuthState(auth);
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -81,16 +87,21 @@ export default function Home() {
   return (
     <div className="fixed inset-0 flex" style={{background: 'var(--bg-primary)'}}>
       {/* Sidebar */}
-      <div className="toolbar-glass w-16 flex flex-col items-center py-4 m-4 gap-2">
+      <div className="toolbar-glass w-20 flex flex-col items-center py-4 m-4 gap-3">
+        <Logo size="sm" />
+        
+        <div className="h-px bg-gray-600 w-12 my-1"></div>
+        
+        <AuthButton />
+        
+        <div className="h-px bg-gray-600 w-12 my-1"></div>
+        
         <Link 
           href="/"
           className="tool-btn active"
           title="Editor de Código"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="16,18 22,12 16,6"/>
-            <polyline points="8,6 2,12 8,18"/>
-          </svg>
+          <Code size={20} />
         </Link>
         
         <Link 
@@ -98,24 +109,17 @@ export default function Home() {
           className="tool-btn"
           title="Área de Desenho"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 19L7 14L18 3L21 6L10 17L12 19Z"/>
-            <path d="M18 13V19C18 20.1 17.1 21 16 21H5C3.9 21 3 20.1 3 19V8C3 6.9 3.9 6 5 6H11"/>
-          </svg>
+          <Palette size={20} />
         </Link>
 
-        <div className="h-px bg-gray-600 w-8 my-2"></div>
+        <div className="h-px bg-gray-600 w-12 my-1"></div>
 
         <button 
           className="tool-btn"
           onClick={() => addBlock('text')}
           title="Adicionar Texto"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="4,7 4,4 20,4 20,7"/>
-            <line x1="9" y1="20" x2="15" y2="20"/>
-            <line x1="12" y1="4" x2="12" y2="20"/>
-          </svg>
+          <Type size={20} />
         </button>
 
         <button 
@@ -123,10 +127,7 @@ export default function Home() {
           onClick={() => addBlock('code')}
           title="Adicionar Código"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="16,18 22,12 16,6"/>
-            <polyline points="8,6 2,12 8,18"/>
-          </svg>
+          <Code size={20} />
         </button>
 
         <button 
@@ -134,31 +135,17 @@ export default function Home() {
           onClick={handleClear}
           title="Limpar Tudo"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="3,6 5,6 21,6"/>
-            <path d="M19,6V20C19,21 18,22 17,22H7C6,22 5,21 5,20V6M8,6V4C8,3 9,2 10,2H14C15,2 16,3 16,4V6"/>
-            <line x1="10" y1="11" x2="10" y2="17"/>
-            <line x1="14" y1="11" x2="14" y2="17"/>
-          </svg>
+          <Trash2 size={20} />
         </button>
 
-        <div className="h-px bg-gray-600 w-8 my-2"></div>
+        <div className="h-px bg-gray-600 w-12 my-1"></div>
 
         <button 
           className="tool-btn"
           onClick={toggleDarkMode}
           title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
         >
-          {isDarkMode ? (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="12" cy="12" r="5"/>
-              <path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>
-            </svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
-            </svg>
-          )}
+          {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
         </button>
       </div>
 
@@ -166,7 +153,17 @@ export default function Home() {
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b" style={{borderColor: 'var(--border)'}}>
-          <h1 className="gradient-text text-3xl font-bold">ctrlC Editor</h1>
+          <div className="flex items-center gap-4">
+            <Logo size="md" />
+            <div>
+              <h1 className="gradient-text text-2xl font-bold">Editor</h1>
+              {user && (
+                <p className="text-sm" style={{color: 'var(--text-secondary)'}}>
+                  Bem-vindo, {user.displayName}
+                </p>
+              )}
+            </div>
+          </div>
           <div className="floating-panel px-4 py-2 flex items-center gap-4">
             <span className="text-sm" style={{color: 'var(--text-secondary)'}}>
               Blocos: {blocks.length}
@@ -189,10 +186,7 @@ export default function Home() {
                     onClick={() => deleteBlock(block.id)}
                     title="Deletar bloco"
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="18" y1="6" x2="6" y2="18"/>
-                      <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
+                    <Trash2 size={16} />
                   </button>
                 )}
 
@@ -234,26 +228,24 @@ export default function Home() {
                 className="floating-panel px-6 py-3 flex items-center gap-2 hover:scale-105 transition-transform"
                 onClick={() => addBlock('text')}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="4,7 4,4 20,4 20,7"/>
-                  <line x1="9" y1="20" x2="15" y2="20"/>
-                  <line x1="12" y1="4" x2="12" y2="20"/>
-                </svg>
+                <Type size={16} />
                 Adicionar Texto
               </button>
               <button 
                 className="floating-panel px-6 py-3 flex items-center gap-2 hover:scale-105 transition-transform"
                 onClick={() => addBlock('code')}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="16,18 22,12 16,6"/>
-                  <polyline points="8,6 2,12 8,18"/>
-                </svg>
+                <Code size={16} />
                 Adicionar Código
               </button>
             </div>
           </div>
         </div>
+        
+        {/* Footer */}
+        <footer className="p-4 border-t text-center text-sm" style={{borderColor: 'var(--border)', color: 'var(--text-secondary)'}}>
+          Desenvolvido por <span className="gradient-text font-semibold">Renan Dias</span> - Material didático Téc. Desenvolvimento de Sistemas
+        </footer>
       </div>
     </div>
   );
