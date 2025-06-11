@@ -209,15 +209,18 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
   };
 
   // Funções auxiliares para criar elementos editáveis
-  const createEditableText = (text: string, x: number, y: number, fontSize: number = 14, options: Partial<fabric.IText['options']> = {}) => {
+  const createEditableText = (
+    text: string,
+    x: number,
+    y: number,
+    fontSize: number = 14,
+    options: Partial<fabric.ITextOptions> = {}
+  ) => {
     return new fabric.IText(text, {
       left: x,
       top: y,
-      fontFamily: 'Inter, sans-serif',
       fontSize,
-      fill: isDarkMode ? '#ffffff' : '#000000',
-      editable: true,
-      ...options
+      ...options,
     });
   };
 
