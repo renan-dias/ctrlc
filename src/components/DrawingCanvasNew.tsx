@@ -18,15 +18,12 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  Move,
-  Minus,
   ArrowRight,
   Database,
   Server,
   Smartphone,
   Globe,
-  Layers,
-  Edit3
+  Layers
 } from 'lucide-react';
 
 export type Tool = 
@@ -57,10 +54,6 @@ interface DrawingCanvasProps {
   isDarkMode: boolean;
 }
 
-interface ConnectionPoints {
-  [key: string]: { x: number; y: number; object: fabric.Object }[];
-}
-
 const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
@@ -71,9 +64,6 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
   const [selectedColor, setSelectedColor] = useState('#3b82f6');
   const [brushSize, setBrushSize] = useState(2);
   const [fontSize, setFontSize] = useState(16);
-  const [connectionPoints, setConnectionPoints] = useState<ConnectionPoints>({});
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [connectionStart, setConnectionStart] = useState<{ x: number; y: number; object: fabric.Object } | null>(null);
 
   // Inicializar Fabric.js
   useEffect(() => {
@@ -928,7 +918,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
     { id: 'rectangle', icon: Square, label: 'Retângulo' },
     { id: 'circle', icon: Circle, label: 'Círculo' },
     { id: 'triangle', icon: Triangle, label: 'Triângulo' },
-    { id: 'line', icon: Minus, label: 'Linha' },
+    { id: 'line', icon: Pencil, label: 'Linha' },
   ];
 
   const umlTools = [
