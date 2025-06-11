@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { fabric } from 'fabric';
+import * as fabric from 'fabric';
 import { 
   Mouse, 
   Square, 
@@ -15,7 +15,6 @@ import {
   Undo,
   Redo,
   Trash2,
-  Move,
   ZoomIn,
   ZoomOut,
   RotateCcw
@@ -48,7 +47,6 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [canvasHistory, setCanvasHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-
   // Inicializar Fabric.js
   useEffect(() => {
     if (canvasRef.current && !fabricCanvasRef.current) {
@@ -78,6 +76,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
         canvas.dispose();
       };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDarkMode]);
 
   // Atualizar cor de fundo quando mudar tema
@@ -97,8 +96,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
       setHistoryIndex(newHistory.length - 1);
     }
   }, [canvasHistory, historyIndex]);
-
-  const handleMouseDown = (e: fabric.IEvent) => {
+  const handleMouseDown = (e: fabric.TEvent) => {
     if (!fabricCanvasRef.current) return;
     
     const pointer = fabricCanvasRef.current.getPointer(e.e);
@@ -140,22 +138,25 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
         break;
       case 'pen':
         fabricCanvasRef.current.isDrawingMode = true;
-        fabricCanvasRef.current.freeDrawingBrush.width = 2;
-        fabricCanvasRef.current.freeDrawingBrush.color = isDarkMode ? '#ffffff' : '#000000';
+        if (fabricCanvasRef.current.freeDrawingBrush) {
+          fabricCanvasRef.current.freeDrawingBrush.width = 2;
+          fabricCanvasRef.current.freeDrawingBrush.color = isDarkMode ? '#ffffff' : '#000000';
+        }
         break;
       case 'eraser':
         fabricCanvasRef.current.isDrawingMode = true;
-        fabricCanvasRef.current.freeDrawingBrush = new fabric.EraserBrush(fabricCanvasRef.current);
-        fabricCanvasRef.current.freeDrawingBrush.width = 10;
+        // Usar PencilBrush como alternativa para borracha
+        if (fabricCanvasRef.current.freeDrawingBrush) {
+          fabricCanvasRef.current.freeDrawingBrush.width = 10;
+          fabricCanvasRef.current.freeDrawingBrush.color = isDarkMode ? '#0a0a0a' : '#ffffff';
+        }
         break;
       default:
         fabricCanvasRef.current.isDrawingMode = false;
         fabricCanvasRef.current.selection = true;
         break;
     }
-  };
-
-  const handleMouseMove = (e: fabric.IEvent) => {
+  };  const handleMouseMove = () => {
     if (!isDrawing || !fabricCanvasRef.current) return;
   };
 
@@ -246,48 +247,60 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
 
   const createUMLClass = (x: number, y: number) => {
     if (!fabricCanvasRef.current) return;
-    
+    // Cria três campos editáveis: nome, atributos, métodos
+    const className = new fabric.IText('Classe', {
+      left: 75,
+      top: 10,
+      originX: 'center',
+      fontSize: 16,
+      fontWeight: 'bold',
+      fill: isDarkMode ? '#fff' : '#222',
+      editable: true,
+    });
+    const attributes = new fabric.IText('atributo: tipo', {
+      left: 10,
+      top: 40,
+      fontSize: 14,
+      fill: isDarkMode ? '#fff' : '#222',
+      editable: true,
+    });
+    const methods = new fabric.IText('metodo(): tipo', {
+      left: 10,
+      top: 70,
+      fontSize: 14,
+      fill: isDarkMode ? '#fff' : '#222',
+      editable: true,
+    });
+    const rect = new fabric.Rect({
+      width: 150,
+      height: 110,
+      fill: isDarkMode ? 'rgba(24,24,32,0.7)' : 'rgba(255,255,255,0.7)',
+      stroke: isDarkMode ? '#a78bfa' : '#7c3aed',
+      strokeWidth: 2,
+      rx: 10,
+      ry: 10,
+    });
+    const line1 = new fabric.Line([0, 35, 150, 35], {
+      stroke: isDarkMode ? '#a78bfa' : '#7c3aed',
+      strokeWidth: 1,
+    });
+    const line2 = new fabric.Line([0, 65, 150, 65], {
+      stroke: isDarkMode ? '#a78bfa' : '#7c3aed',
+      strokeWidth: 1,
+    });
     const group = new fabric.Group([
-      new fabric.Rect({
-        width: 150,
-        height: 120,
-        fill: 'transparent',
-        stroke: isDarkMode ? '#ffffff' : '#000000',
-        strokeWidth: 2,
-      }),
-      new fabric.Line([0, 30, 150, 30], {
-        stroke: isDarkMode ? '#ffffff' : '#000000',
-        strokeWidth: 1,
-      }),
-      new fabric.Line([0, 80, 150, 80], {
-        stroke: isDarkMode ? '#ffffff' : '#000000',
-        strokeWidth: 1,
-      }),
-      new fabric.IText('ClassName', {
-        left: 75,
-        top: 10,
-        originX: 'center',
-        fontSize: 14,
-        fontWeight: 'bold',
-        fill: isDarkMode ? '#ffffff' : '#000000',
-      }),
-      new fabric.IText('- attribute: type', {
-        left: 10,
-        top: 40,
-        fontSize: 12,
-        fill: isDarkMode ? '#ffffff' : '#000000',
-      }),
-      new fabric.IText('+ method(): type', {
-        left: 10,
-        top: 90,
-        fontSize: 12,
-        fill: isDarkMode ? '#ffffff' : '#000000',
-      }),
+      rect, line1, line2, className, attributes, methods
     ], {
       left: x,
       top: y,
+      hasBorders: true,
+      hasControls: true,
+      lockScalingFlip: true,
+      cornerColor: '#a78bfa',
+      borderColor: '#a78bfa',
+      cornerSize: 8,
+      padding: 4,
     });
-    
     fabricCanvasRef.current.add(group);
     fabricCanvasRef.current.setActiveObject(group);
   };
@@ -506,11 +519,10 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
       saveCanvasState();
     }
   };
-
   const deleteSelected = () => {
     if (fabricCanvasRef.current) {
       const activeObjects = fabricCanvasRef.current.getActiveObjects();
-      activeObjects.forEach(obj => {
+      activeObjects.forEach((obj: fabric.Object) => {
         fabricCanvasRef.current?.remove(obj);
       });
       fabricCanvasRef.current.discardActiveObject();
@@ -552,11 +564,10 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
       link.click();
     }
   };
-
   const shareCanvas = async () => {
     if (fabricCanvasRef.current && navigator.share) {
       const canvas = fabricCanvasRef.current.getElement();
-      canvas.toBlob(async (blob) => {
+      canvas.toBlob(async (blob: Blob | null) => {
         if (blob) {
           const file = new File([blob], 'drawing.png', { type: 'image/png' });
           try {
@@ -600,7 +611,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
   ];
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-screen bg-gradient-to-br from-black via-purple-950 to-indigo-900">
       {/* Toolbar */}
       <div className="w-80 bg-white/10 dark:bg-black/20 backdrop-blur-md shadow-xl border-r border-white/20 dark:border-white/10 p-4 overflow-y-auto">
         <div className="space-y-6">
@@ -773,14 +784,21 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
               </div>
             </div>
           </div>
+
+          {/* Instrução visual para conexões */}
+          <div className="mt-6 p-2 rounded-lg bg-black/30 text-xs text-white/80 text-center border border-white/10">
+            Dica: Para conectar classes, selecione a ferramenta linha e clique/arraste entre os blocos.<br/>
+            Dê dois cliques em textos para editar.
+          </div>
         </div>
       </div>
 
       {/* Canvas */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden relative">
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-white/10 via-purple-400/10 to-indigo-400/10 rounded-xl blur-2xl opacity-60 z-0" />
         <canvas
           ref={canvasRef}
-          className="border-none outline-none"
+          className="border-none outline-none relative z-10"
         />
       </div>
     </div>

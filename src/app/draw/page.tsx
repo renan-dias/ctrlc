@@ -1,69 +1,93 @@
 'use client';
-
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Sun, Moon } from 'lucide-react';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth } from '@/lib/firebase';
 import Logo from '@/components/Logo';
-import DrawingCanvas from '@/components/DrawingCanvas';
+import AuthButton from '@/components/AuthButton';
+import DrawingCanvas from '@/components/DrawingCanvasNew';
+import { Code, Palette, Sun, Moon } from 'lucide-react';
 
 export default function DrawPage() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [user] = useAuthState(auth);
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+    document.documentElement.setAttribute('data-theme', !isDarkMode ? 'dark' : 'light');
+  };
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      isDarkMode 
-        ? 'bg-gradient-to-br from-black via-purple-900/20 to-black' 
-        : 'bg-gradient-to-br from-white via-purple-100/30 to-white'
-    }`}>
-      {/* Header */}
-      <header className="bg-white/10 dark:bg-black/20 backdrop-blur-md shadow-xl border-b border-white/20 z-10 relative">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Link 
-                href="/" 
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 transition-all"
-              >
-                <ArrowLeft className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-              </Link>
-              <Logo />
-              <span className="text-lg font-semibold text-gray-800 dark:text-white">
-                Área de Desenho
-              </span>
-            </div>
-            
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 transition-all"
-              >
-                {isDarkMode ? (
-                  <Sun className="w-5 h-5 text-yellow-500" />
-                ) : (
-                  <Moon className="w-5 h-5 text-gray-700" />
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="fixed inset-0 flex" style={{background: 'var(--bg-primary)'}}>
+      {/* Sidebar */}
+      <div className="toolbar-glass w-20 flex flex-col items-center py-4 m-4 gap-3">
+        <Logo size="sm" />
+        
+        <div className="h-px bg-gray-600 w-12 my-1"></div>
+        
+        <AuthButton />
+        
+        <div className="h-px bg-gray-600 w-12 my-1"></div>
+        
+        <Link 
+          href="/"
+          className="tool-btn"
+          title="Editor de Código"
+        >
+          <Code size={20} />
+        </Link>
+        
+        <Link 
+          href="/draw"
+          className="tool-btn active"
+          title="Área de Desenho"
+        >
+          <Palette size={20} />
+        </Link>
 
-      {/* Drawing Canvas */}
-      <div className="h-[calc(100vh-8rem)]">
-        <DrawingCanvas isDarkMode={isDarkMode} />
+        <div className="h-px bg-gray-600 w-12 my-1"></div>
+
+        <button 
+          className="tool-btn"
+          onClick={toggleDarkMode}
+          title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
+        >
+          {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
       </div>
 
-      {/* Footer */}
-      <footer className="bg-white/5 dark:bg-black/20 backdrop-blur-md border-t border-white/10 py-4 z-10 relative">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Desenvolvido por <span className="font-semibold">Renan Dias</span> - 
-              Material didático Técnico em Desenvolvimento de Sistemas
-            </p>
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b" style={{borderColor: 'var(--border)'}}>
+          <div className="flex items-center gap-4">
+            <Logo size="md" />
+            <div>
+              <h1 className="gradient-text text-2xl font-bold">Área de Desenho</h1>
+              {user && (
+                <p className="text-sm" style={{color: 'var(--text-secondary)'}}>
+                  Bem-vindo, {user.displayName}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="floating-panel px-4 py-2 flex items-center gap-4">
+            <span className="text-sm" style={{color: 'var(--text-secondary)'}}>
+              Modo: {isDarkMode ? 'Escuro' : 'Claro'}
+            </span>
           </div>
         </div>
-      </footer>
+
+        {/* Canvas Area */}
+        <div className="flex-1 relative">
+          <DrawingCanvas isDarkMode={isDarkMode} />
+        </div>
+        
+        {/* Footer */}
+        <footer className="p-4 border-t text-center text-sm" style={{borderColor: 'var(--border)', color: 'var(--text-secondary)'}}>
+          Desenvolvido por <span className="gradient-text font-semibold">Renan Dias</span> - Material didático Téc. Desenvolvimento de Sistemas
+        </footer>
+      </div>
     </div>
   );
 }

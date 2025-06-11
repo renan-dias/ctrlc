@@ -9,7 +9,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
 import { markdown } from '@codemirror/lang-markdown';
-import { Plus, Code, Type, Trash2, Sun, Moon, Palette } from 'lucide-react';
+import { Code, Type, Trash2, Sun, Moon, Palette } from 'lucide-react';
 
 interface Block {
   id: number;

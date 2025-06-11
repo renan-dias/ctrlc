@@ -1,9 +1,10 @@
 'use client';
 import { useState } from 'react';
+import Image from 'next/image';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, googleProvider } from '@/lib/firebase';
-import { LogIn, LogOut, User } from 'lucide-react';
+import { LogIn, LogOut } from 'lucide-react';
 
 export default function AuthButton() {
   const [user, loading] = useAuthState(auth);
@@ -38,13 +39,14 @@ export default function AuthButton() {
 
   if (user) {
     return (
-      <div className="flex items-center gap-2">
-        <div className="floating-panel px-3 py-2 flex items-center gap-2">
+      <div className="flex items-center gap-2">        <div className="floating-panel px-3 py-2 flex items-center gap-2">
           {user.photoURL && (
-            <img 
+            <Image 
               src={user.photoURL} 
               alt={user.displayName || 'User'} 
-              className="w-6 h-6 rounded-full"
+              width={24}
+              height={24}
+              className="rounded-full"
             />
           )}
           <span className="text-sm max-w-20 truncate" style={{color: 'var(--text-secondary)'}}>
