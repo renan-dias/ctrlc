@@ -49,11 +49,10 @@ export default function DrawPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [elements, setElements] = useState<DiagramElement[]>([]);
   const [selectedTool, setSelectedTool] = useState<Tool>('select');
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);  const [isDrawing, setIsDrawing] = useState(false);
   const [dragStart, setDragStart] = useState<{x: number, y: number} | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({x: 0, y: 0});
+  const zoom = 1;
+  const pan = {x: 0, y: 0};
 
   // Toggle dark mode
   const toggleDarkMode = () => {
@@ -93,13 +92,10 @@ export default function DrawPage() {
       }
       return;
     }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  };  const handleMouseMove = () => {
     if (!isDrawing || !dragStart) return;
     
-    const coords = getCanvasCoords(e.clientX, e.clientY);
-    // Aqui você pode adicionar preview do elemento sendo desenhado
+    // Preview do elemento sendo desenhado pode ser adicionado aqui
   };
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -370,11 +366,10 @@ export default function DrawPage() {
       </div>
 
       {/* Canvas principal */}
-      <div className="flex-1 relative">
-        <canvas
+      <div className="flex-1 relative">        <canvas
           ref={canvasRef}
-          width={window.innerWidth - 100}
-          height={window.innerHeight}
+          width={typeof window !== 'undefined' ? window.innerWidth - 100 : 1200}
+          height={typeof window !== 'undefined' ? window.innerHeight : 800}
           className="canvas-grid cursor-crosshair"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
