@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
@@ -209,6 +210,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
   };
 
   // Funções auxiliares para criar elementos editáveis
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const createEditableText = (
     text: string,
     x: number,
