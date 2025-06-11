@@ -214,7 +214,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
     x: number,
     y: number,
     fontSize: number = 14,
-    options: Partial<fabric.IText['options']> = {}
+    options: any = {}
   ) => {
     return new fabric.IText(text, {
       left: x,
