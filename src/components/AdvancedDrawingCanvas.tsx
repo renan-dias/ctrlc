@@ -24,7 +24,8 @@ import {
   Server,
   Smartphone,
   Globe,
-  Layers
+  Layers,
+  Copy
 } from 'lucide-react';
 
 export type Tool = 
@@ -36,6 +37,7 @@ export type Tool =
   | 'triangle' 
   | 'line' 
   | 'text'
+  | 'arrow'
   | 'uml-class'
   | 'uml-interface'
   | 'uml-abstract'
@@ -48,30 +50,40 @@ export type Tool =
   | 'service-db'
   | 'service-microservice'
   | 'service-frontend'
-  | 'arrow'
-  | 'connection';
+  | 'connector';
 
 interface DrawingCanvasProps {
   isDarkMode: boolean;
 }
 
-const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
+const AdvancedDrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
+  
+  // Estados principais
   const [currentTool, setCurrentTool] = useState<Tool>('select');
   const [isDrawing, setIsDrawing] = useState(false);
   const [canvasHistory, setCanvasHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [selectedColor, setSelectedColor] = useState('#3b82f6');
+  
+  // Estados de configuração
+  const [selectedColor, setSelectedColor] = useState('#6366f1');
   const [brushSize, setBrushSize] = useState(2);
   const [fontSize, setFontSize] = useState(16);
+  const [zoom, setZoom] = useState(100);
+  
+  // Estados de conexão
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionStart, setConnectionStart] = useState<any>(null);
+  const [showGrid, setShowGrid] = useState(true);
+  const [snapToGrid, setSnapToGrid] = useState(false);
 
   // Inicializar Fabric.js
   useEffect(() => {
     if (canvasRef.current && !fabricCanvasRef.current) {
       const canvas = new fabric.Canvas(canvasRef.current, {
-        width: window.innerWidth - 400,
-        height: window.innerHeight - 200,
+        width: window.innerWidth - 320,
+        height: window.innerHeight - 120,
         backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff',
         selection: true,
         preserveObjectStacking: true,
@@ -87,6 +99,9 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
       canvas.on('object:added', saveCanvasState);
       canvas.on('object:removed', saveCanvasState);
       canvas.on('object:modified', saveCanvasState);
+      canvas.on('selection:created', handleSelection);
+      canvas.on('selection:updated', handleSelection);
+      canvas.on('selection:cleared', handleSelectionCleared);
 
       // Estado inicial
       saveCanvasState();
@@ -106,6 +121,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
     }
   }, [isDarkMode]);
 
+  // Salvar estado do canvas
   const saveCanvasState = useCallback(() => {
     if (fabricCanvasRef.current) {
       const state = JSON.stringify(fabricCanvasRef.current.toJSON());
@@ -116,11 +132,18 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
     }
   }, [canvasHistory, historyIndex]);
 
+  // Handlers de eventos
   const handleMouseDown = (e: fabric.TEvent) => {
     if (!fabricCanvasRef.current) return;
     
     const pointer = fabricCanvasRef.current.getPointer(e.e);
     setIsDrawing(true);
+
+    // Se estiver no modo de conexão
+    if (currentTool === 'connector') {
+      handleConnectorTool(e);
+      return;
+    }
 
     switch (currentTool) {
       case 'rectangle':
@@ -134,6 +157,9 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
         break;
       case 'line':
         createLine(pointer.x, pointer.y);
+        break;
+      case 'arrow':
+        createArrow(pointer.x, pointer.y);
         break;
       case 'text':
         createText(pointer.x, pointer.y);
@@ -174,9 +200,6 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
       case 'service-frontend':
         createServiceFrontend(pointer.x, pointer.y);
         break;
-      case 'arrow':
-        createArrow(pointer.x, pointer.y);
-        break;
       case 'pen':
         fabricCanvasRef.current.isDrawingMode = true;
         if (fabricCanvasRef.current.freeDrawingBrush) {
@@ -208,7 +231,31 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
       fabricCanvasRef.current.isDrawingMode = currentTool === 'pen' || currentTool === 'eraser';
     }
   };
-  // Funções auxiliares para criar elementos editáveis
+  const handleSelection = () => {
+    // Lógica para quando objetos são selecionados
+  };
+
+  const handleSelectionCleared = () => {
+    // Lógica para quando seleção é limpa
+  };
+  const handleConnectorTool = (e: fabric.TEvent) => {
+    if (!fabricCanvasRef.current) return;
+    
+    const target = fabricCanvasRef.current.findTarget(e.e);
+    
+    if (!isConnecting && target) {
+      // Iniciar conexão
+      setIsConnecting(true);
+      setConnectionStart(target);
+    } else if (isConnecting && target && target !== connectionStart) {
+      // Finalizar conexão
+      createConnection(connectionStart, target);
+      setIsConnecting(false);
+      setConnectionStart(null);
+    }
+  };
+
+  // Função auxiliar para criar texto editável
   const createEditableText = (
     text: string,
     x: number,
@@ -220,6 +267,8 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
       left: x,
       top: y,
       fontSize,
+      fill: isDarkMode ? '#ffffff' : '#000000',
+      fontFamily: 'Inter, sans-serif',
       ...options,
     });
   };
@@ -238,6 +287,12 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
       strokeWidth: 2,
       rx: 8,
       ry: 8,
+      shadow: new fabric.Shadow({
+        color: selectedColor + '20',
+        blur: 4,
+        offsetX: 0,
+        offsetY: 2,
+      }),
     });
     
     fabricCanvasRef.current.add(rect);
@@ -254,6 +309,12 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
       fill: 'transparent',
       stroke: selectedColor,
       strokeWidth: 2,
+      shadow: new fabric.Shadow({
+        color: selectedColor + '20',
+        blur: 4,
+        offsetX: 0,
+        offsetY: 2,
+      }),
     });
     
     fabricCanvasRef.current.add(circle);
@@ -271,6 +332,12 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
       fill: 'transparent',
       stroke: selectedColor,
       strokeWidth: 2,
+      shadow: new fabric.Shadow({
+        color: selectedColor + '20',
+        blur: 4,
+        offsetX: 0,
+        offsetY: 2,
+      }),
     });
     
     fabricCanvasRef.current.add(triangle);
@@ -282,20 +349,11 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
     
     const line = new fabric.Line([x, y, x + 150, y], {
       stroke: selectedColor,
-      strokeWidth: 2,
+      strokeWidth: brushSize,
     });
     
     fabricCanvasRef.current.add(line);
     fabricCanvasRef.current.setActiveObject(line);
-  };
-
-  const createText = (x: number, y: number) => {
-    if (!fabricCanvasRef.current) return;
-    
-    const text = createEditableText('Clique para editar', x, y, fontSize);
-    
-    fabricCanvasRef.current.add(text);
-    fabricCanvasRef.current.setActiveObject(text);
   };
 
   const createArrow = (x: number, y: number) => {
@@ -303,7 +361,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
     
     const arrowLine = new fabric.Line([x, y, x + 100, y], {
       stroke: selectedColor,
-      strokeWidth: 2,
+      strokeWidth: brushSize,
     });
 
     const arrowHead = new fabric.Triangle({
@@ -326,7 +384,16 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
     fabricCanvasRef.current.setActiveObject(group);
   };
 
-  // Diagramas UML complexos e editáveis
+  const createText = (x: number, y: number) => {
+    if (!fabricCanvasRef.current) return;
+    
+    const text = createEditableText('Clique para editar', x, y, fontSize);
+    
+    fabricCanvasRef.current.add(text);
+    fabricCanvasRef.current.setActiveObject(text);
+  };
+
+  // Diagramas UML avançados
   const createUMLClass = (x: number, y: number) => {
     if (!fabricCanvasRef.current) return;
     
@@ -808,6 +875,43 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
     fabricCanvasRef.current.setActiveObject(group);
   };
 
+  // Função para criar conexões entre elementos
+  const createConnection = (startObj: any, endObj: any) => {
+    if (!fabricCanvasRef.current || !startObj || !endObj) return;
+
+    const startCenter = startObj.getCenterPoint();
+    const endCenter = endObj.getCenterPoint();
+
+    const line = new fabric.Line([
+      startCenter.x, startCenter.y,
+      endCenter.x, endCenter.y
+    ], {
+      stroke: selectedColor,
+      strokeWidth: 2,
+      strokeDashArray: [5, 5],
+      selectable: true,
+    });
+
+    // Adicionar seta no final
+    const angle = Math.atan2(endCenter.y - startCenter.y, endCenter.x - startCenter.x);
+    const arrowHead = new fabric.Triangle({
+      left: endCenter.x,
+      top: endCenter.y,
+      width: 10,
+      height: 10,
+      fill: selectedColor,
+      angle: (angle * 180 / Math.PI) + 90,
+      originX: 'center',
+      originY: 'center',
+    });
+
+    const connection = new fabric.Group([line, arrowHead], {
+      selectable: true,
+    });
+
+    fabricCanvasRef.current.add(connection);
+  };
+
   // Funções de controle
   const undo = () => {
     if (historyIndex > 0 && fabricCanvasRef.current) {
@@ -849,26 +953,47 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
       fabricCanvasRef.current.discardActiveObject();
       fabricCanvasRef.current.renderAll();
     }
+  };  const duplicateSelected = () => {
+    if (fabricCanvasRef.current) {
+      const activeObjects = fabricCanvasRef.current.getActiveObjects();
+      activeObjects.forEach(async (obj: fabric.Object) => {
+        try {
+          const cloned = await obj.clone();
+          cloned.set({
+            left: (cloned.left || 0) + 20,
+            top: (cloned.top || 0) + 20,
+          });
+          fabricCanvasRef.current?.add(cloned);
+        } catch (error) {
+          console.error('Erro ao duplicar objeto:', error);
+        }
+      });
+    }
   };
 
   const zoomIn = () => {
-    if (fabricCanvasRef.current) {
-      const zoom = fabricCanvasRef.current.getZoom();
-      fabricCanvasRef.current.setZoom(Math.min(zoom * 1.2, 3));
+    if (fabricCanvasRef.current && zoom < 300) {
+      const newZoom = Math.min(zoom + 25, 300);
+      setZoom(newZoom);
+      fabricCanvasRef.current.setZoom(newZoom / 100);
+      fabricCanvasRef.current.renderAll();
     }
   };
 
   const zoomOut = () => {
-    if (fabricCanvasRef.current) {
-      const zoom = fabricCanvasRef.current.getZoom();
-      fabricCanvasRef.current.setZoom(Math.max(zoom / 1.2, 0.1));
+    if (fabricCanvasRef.current && zoom > 25) {
+      const newZoom = Math.max(zoom - 25, 25);
+      setZoom(newZoom);
+      fabricCanvasRef.current.setZoom(newZoom / 100);
+      fabricCanvasRef.current.renderAll();
     }
   };
 
   const resetZoom = () => {
     if (fabricCanvasRef.current) {
+      setZoom(100);
       fabricCanvasRef.current.setZoom(1);
-      fabricCanvasRef.current.setViewportTransform([1, 0, 0, 1, 0, 0]);
+      fabricCanvasRef.current.renderAll();
     }
   };
 
@@ -896,7 +1021,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
           try {
             await navigator.share({
               files: [file],
-              title: 'Meu diagrama ctrlC',
+              title: 'Meu desenho ctrlC',
             });
           } catch (error) {
             console.error('Erro ao compartilhar:', error);
@@ -908,13 +1033,13 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
     }
   };
 
-  // Definir ferramentas organizadas
+  // Definição das ferramentas
   const basicTools = [
     { id: 'select', icon: Mouse, label: 'Selecionar' },
     { id: 'pen', icon: Pencil, label: 'Desenho Livre' },
     { id: 'eraser', icon: Eraser, label: 'Borracha' },
     { id: 'text', icon: Type, label: 'Texto' },
-    { id: 'arrow', icon: ArrowRight, label: 'Seta' },
+    { id: 'connector', icon: ArrowRight, label: 'Conectar' },
   ];
 
   const shapeTools = [
@@ -922,6 +1047,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
     { id: 'circle', icon: Circle, label: 'Círculo' },
     { id: 'triangle', icon: Triangle, label: 'Triângulo' },
     { id: 'line', icon: Pencil, label: 'Linha' },
+    { id: 'arrow', icon: ArrowRight, label: 'Seta' },
   ];
 
   const umlTools = [
@@ -939,312 +1065,339 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ isDarkMode }) => {
   ];
 
   const serviceTools = [
-    { id: 'service-api', icon: Server, label: 'API' },
+    { id: 'service-api', icon: Globe, label: 'API' },
     { id: 'service-db', icon: Database, label: 'Database' },
-    { id: 'service-microservice', icon: Globe, label: 'Microservice' },
+    { id: 'service-microservice', icon: Server, label: 'Microserviço' },
     { id: 'service-frontend', icon: Smartphone, label: 'Frontend' },
   ];
 
   const colors = [
-    '#3b82f6', '#ef4444', '#10b981', '#f59e0b', 
-    '#8b5cf6', '#f97316', '#06b6d4', '#84cc16',
-    '#ec4899', '#6b7280', '#000000', '#ffffff'
+    '#6366f1', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
+    '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6b7280', '#000000'
   ];
 
   return (
-    <div className="fixed inset-0 flex" style={{background: 'var(--bg-primary)'}}>
-      {/* Sidebar com ferramentas */}
-      <div className="modern-glass w-80 border-r" style={{borderColor: 'var(--border)'}} >
-        <div className="p-6 h-full overflow-y-auto">
-          <div className="space-y-6">
-            {/* Ferramentas Básicas */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3" style={{color: 'var(--text-primary)'}}>
-                Ferramentas Básicas
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {basicTools.map((tool) => (
-                  <button
-                    key={tool.id}
-                    onClick={() => setCurrentTool(tool.id as Tool)}
-                    className={`p-3 rounded-lg border transition-all ${
-                      currentTool === tool.id
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white/5 hover:bg-white/10 border-white/10'
-                    }`}
-                    title={tool.label}
-                    style={{color: currentTool === tool.id ? '#ffffff' : 'var(--text-primary)'}}
-                  >
-                    <tool.icon className="w-5 h-5 mx-auto mb-1" />
-                    <span className="text-xs block">{tool.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+    <div className="flex h-screen bg-gradient-to-br from-black via-purple-950 to-indigo-900">
+      {/* Sidebar esquerda */}
+      <div className="w-80 bg-black/40 backdrop-blur-xl border-r border-white/10 overflow-y-auto">
+        <div className="p-4 space-y-6">
+          {/* Logo e título */}
+          <div className="text-center mb-6">
+            <h1 className="text-xl font-bold text-white mb-2">Área de Desenho</h1>
+            <p className="text-sm text-white/60">Como Whimsical - Totalmente funcional</p>
+          </div>
 
-            {/* Formas */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3" style={{color: 'var(--text-primary)'}}>
-                Formas
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {shapeTools.map((tool) => (
-                  <button
-                    key={tool.id}
-                    onClick={() => setCurrentTool(tool.id as Tool)}
-                    className={`p-3 rounded-lg border transition-all ${
-                      currentTool === tool.id
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white/5 hover:bg-white/10 border-white/10'
-                    }`}
-                    title={tool.label}
-                    style={{color: currentTool === tool.id ? '#ffffff' : 'var(--text-primary)'}}
-                  >
-                    <tool.icon className="w-5 h-5 mx-auto mb-1" />
-                    <span className="text-xs block">{tool.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* UML */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3" style={{color: 'var(--text-primary)'}}>
-                Diagramas UML
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {umlTools.map((tool) => (
-                  <button
-                    key={tool.id}
-                    onClick={() => setCurrentTool(tool.id as Tool)}
-                    className={`p-3 rounded-lg border transition-all ${
-                      currentTool === tool.id
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white/5 hover:bg-white/10 border-white/10'
-                    }`}
-                    title={tool.label}
-                    style={{color: currentTool === tool.id ? '#ffffff' : 'var(--text-primary)'}}
-                  >
-                    <tool.icon className="w-5 h-5 mx-auto mb-1" />
-                    <span className="text-xs block">{tool.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* UI Components */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3" style={{color: 'var(--text-primary)'}}>
-                Componentes UI
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {uiTools.map((tool) => (
-                  <button
-                    key={tool.id}
-                    onClick={() => setCurrentTool(tool.id as Tool)}
-                    className={`p-3 rounded-lg border transition-all ${
-                      currentTool === tool.id
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white/5 hover:bg-white/10 border-white/10'
-                    }`}
-                    title={tool.label}
-                    style={{color: currentTool === tool.id ? '#ffffff' : 'var(--text-primary)'}}
-                  >
-                    <tool.icon className="w-5 h-5 mx-auto mb-1" />
-                    <span className="text-xs block">{tool.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Services */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3" style={{color: 'var(--text-primary)'}}>
-                Serviços & Arquitetura
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {serviceTools.map((tool) => (
-                  <button
-                    key={tool.id}
-                    onClick={() => setCurrentTool(tool.id as Tool)}
-                    className={`p-3 rounded-lg border transition-all ${
-                      currentTool === tool.id
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white/5 hover:bg-white/10 border-white/10'
-                    }`}
-                    title={tool.label}
-                    style={{color: currentTool === tool.id ? '#ffffff' : 'var(--text-primary)'}}
-                  >
-                    <tool.icon className="w-5 h-5 mx-auto mb-1" />
-                    <span className="text-xs block">{tool.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Paleta de Cores */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3" style={{color: 'var(--text-primary)'}}>
-                Cores
-              </h3>
-              <div className="grid grid-cols-6 gap-2">
-                {colors.map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => setSelectedColor(color)}
-                    className={`w-8 h-8 rounded-lg border-2 transition-all ${
-                      selectedColor === color ? 'border-white scale-110' : 'border-gray-400'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    title={color}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Configurações */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3" style={{color: 'var(--text-primary)'}}>
-                Configurações
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs" style={{color: 'var(--text-secondary)'}}>
-                    Tamanho do Pincel: {brushSize}px
-                  </label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="20"
-                    value={brushSize}
-                    onChange={(e) => setBrushSize(Number(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs" style={{color: 'var(--text-secondary)'}}>
-                    Tamanho da Fonte: {fontSize}px
-                  </label>
-                  <input
-                    type="range"
-                    min="10"
-                    max="32"
-                    value={fontSize}
-                    onChange={(e) => setFontSize(Number(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Controles */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3" style={{color: 'var(--text-primary)'}}>
-                Controles
-              </h3>
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <button
-                    onClick={undo}
-                    disabled={historyIndex <= 0}
-                    className="flex-1 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-50"
-                    title="Desfazer"
-                    style={{color: 'var(--text-primary)'}}
-                  >
-                    <Undo className="w-4 h-4 mx-auto" />
-                  </button>
-                  <button
-                    onClick={redo}
-                    disabled={historyIndex >= canvasHistory.length - 1}
-                    className="flex-1 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-50"
-                    title="Refazer"
-                    style={{color: 'var(--text-primary)'}}
-                  >
-                    <Redo className="w-4 h-4 mx-auto" />
-                  </button>
-                </div>
-                
-                <div className="flex gap-2">
-                  <button
-                    onClick={zoomIn}
-                    className="flex-1 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10"
-                    title="Zoom In"
-                    style={{color: 'var(--text-primary)'}}
-                  >
-                    <ZoomIn className="w-4 h-4 mx-auto" />
-                  </button>
-                  <button
-                    onClick={zoomOut}
-                    className="flex-1 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10"
-                    title="Zoom Out"
-                    style={{color: 'var(--text-primary)'}}
-                  >
-                    <ZoomOut className="w-4 h-4 mx-auto" />
-                  </button>
-                  <button
-                    onClick={resetZoom}
-                    className="flex-1 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10"
-                    title="Reset Zoom"
-                    style={{color: 'var(--text-primary)'}}
-                  >
-                    <RotateCcw className="w-4 h-4 mx-auto" />
-                  </button>
-                </div>
-
+          {/* Ferramentas Básicas */}
+          <div>
+            <h3 className="text-sm font-semibold mb-3 text-white">Ferramentas Básicas</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {basicTools.map((tool) => (
                 <button
-                  onClick={deleteSelected}
-                  className="w-full p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-400"
-                  title="Deletar selecionado"
+                  key={tool.id}
+                  onClick={() => setCurrentTool(tool.id as Tool)}
+                  className={`p-3 rounded-lg border transition-all ${
+                    currentTool === tool.id
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
+                  }`}
+                  title={tool.label}
                 >
-                  <Trash2 className="w-4 h-4 mx-auto" />
+                  <tool.icon className="w-5 h-5 mx-auto mb-1" />
+                  <span className="text-xs block">{tool.label}</span>
                 </button>
+              ))}
+            </div>
+          </div>
 
+          {/* Formas */}
+          <div>
+            <h3 className="text-sm font-semibold mb-3 text-white">Formas</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {shapeTools.map((tool) => (
                 <button
-                  onClick={clearCanvas}
-                  className="w-full p-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
-                  title="Limpar tudo"
+                  key={tool.id}
+                  onClick={() => setCurrentTool(tool.id as Tool)}
+                  className={`p-3 rounded-lg border transition-all ${
+                    currentTool === tool.id
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
+                  }`}
+                  title={tool.label}
                 >
-                  Limpar Tudo
+                  <tool.icon className="w-5 h-5 mx-auto mb-1" />
+                  <span className="text-xs block">{tool.label}</span>
                 </button>
+              ))}
+            </div>
+          </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={exportCanvas}
-                    className="flex-1 p-2 rounded-lg bg-green-500 hover:bg-green-600 text-white"
-                    title="Exportar"
-                  >
-                    <Download className="w-4 h-4 mx-auto" />
-                  </button>
-                  <button
-                    onClick={shareCanvas}
-                    className="flex-1 p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
-                    title="Compartilhar"
-                  >
-                    <Share2 className="w-4 h-4 mx-auto" />
-                  </button>
-                </div>
+          {/* Diagramas UML */}
+          <div>
+            <h3 className="text-sm font-semibold mb-3 text-white">Diagramas UML</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {umlTools.map((tool) => (
+                <button
+                  key={tool.id}
+                  onClick={() => setCurrentTool(tool.id as Tool)}
+                  className={`p-3 rounded-lg border transition-all ${
+                    currentTool === tool.id
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
+                  }`}
+                  title={tool.label}
+                >
+                  <tool.icon className="w-5 h-5 mx-auto mb-1" />
+                  <span className="text-xs block">{tool.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Componentes UI */}
+          <div>
+            <h3 className="text-sm font-semibold mb-3 text-white">Componentes UI</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {uiTools.map((tool) => (
+                <button
+                  key={tool.id}
+                  onClick={() => setCurrentTool(tool.id as Tool)}
+                  className={`p-3 rounded-lg border transition-all ${
+                    currentTool === tool.id
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
+                  }`}
+                  title={tool.label}
+                >
+                  <tool.icon className="w-5 h-5 mx-auto mb-1" />
+                  <span className="text-xs block">{tool.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Serviços & Arquitetura */}
+          <div>
+            <h3 className="text-sm font-semibold mb-3 text-white">Serviços & Arquitetura</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {serviceTools.map((tool) => (
+                <button
+                  key={tool.id}
+                  onClick={() => setCurrentTool(tool.id as Tool)}
+                  className={`p-3 rounded-lg border transition-all ${
+                    currentTool === tool.id
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
+                  }`}
+                  title={tool.label}
+                >
+                  <tool.icon className="w-5 h-5 mx-auto mb-1" />
+                  <span className="text-xs block">{tool.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Paleta de Cores */}
+          <div>
+            <h3 className="text-sm font-semibold mb-3 text-white">Cores</h3>
+            <div className="grid grid-cols-6 gap-2">
+              {colors.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setSelectedColor(color)}
+                  className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                    selectedColor === color ? 'border-white scale-110' : 'border-gray-400'
+                  }`}
+                  style={{ backgroundColor: color }}
+                  title={color}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Configurações */}
+          <div>
+            <h3 className="text-sm font-semibold mb-3 text-white">Configurações</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-white/80">
+                  Tamanho do Pincel: {brushSize}px
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="20"
+                  value={brushSize}
+                  onChange={(e) => setBrushSize(Number(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-white/80">
+                  Tamanho da Fonte: {fontSize}px
+                </label>
+                <input
+                  type="range"
+                  min="10"
+                  max="32"
+                  value={fontSize}
+                  onChange={(e) => setFontSize(Number(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowGrid(!showGrid)}
+                  className={`flex-1 p-2 rounded-lg border text-xs ${
+                    showGrid ? 'bg-blue-500 text-white border-blue-500' : 'bg-white/5 border-white/10 text-white'
+                  }`}
+                >
+                  Grid
+                </button>
+                <button
+                  onClick={() => setSnapToGrid(!snapToGrid)}
+                  className={`flex-1 p-2 rounded-lg border text-xs ${
+                    snapToGrid ? 'bg-blue-500 text-white border-blue-500' : 'bg-white/5 border-white/10 text-white'
+                  }`}
+                >
+                  Snap
+                </button>
               </div>
             </div>
+          </div>
+
+          {/* Controles */}
+          <div>
+            <h3 className="text-sm font-semibold mb-3 text-white">Controles</h3>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <button
+                  onClick={undo}
+                  disabled={historyIndex <= 0}
+                  className="flex-1 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-50 text-white"
+                  title="Desfazer"
+                >
+                  <Undo className="w-4 h-4 mx-auto" />
+                </button>
+                <button
+                  onClick={redo}
+                  disabled={historyIndex >= canvasHistory.length - 1}
+                  className="flex-1 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-50 text-white"
+                  title="Refazer"
+                >
+                  <Redo className="w-4 h-4 mx-auto" />
+                </button>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={zoomIn}
+                  className="flex-1 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-4 h-4 mx-auto" />
+                </button>
+                <button
+                  onClick={zoomOut}
+                  className="flex-1 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-4 h-4 mx-auto" />
+                </button>
+                <button
+                  onClick={resetZoom}
+                  className="flex-1 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white"
+                  title="Reset Zoom"
+                >
+                  <RotateCcw className="w-4 h-4 mx-auto" />
+                </button>
+              </div>
+
+              <button
+                onClick={duplicateSelected}
+                className="w-full p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white"
+                title="Duplicar selecionado"
+              >
+                <Copy className="w-4 h-4 mx-auto" />
+              </button>
+
+              <button
+                onClick={deleteSelected}
+                className="w-full p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-400"
+                title="Deletar selecionado"
+              >
+                <Trash2 className="w-4 h-4 mx-auto" />
+              </button>
+
+              <button
+                onClick={clearCanvas}
+                className="w-full p-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
+                title="Limpar tudo"
+              >
+                Limpar Tudo
+              </button>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={exportCanvas}
+                  className="flex-1 p-2 rounded-lg bg-green-500 hover:bg-green-600 text-white"
+                  title="Exportar"
+                >
+                  <Download className="w-4 h-4 mx-auto" />
+                </button>
+                <button
+                  onClick={shareCanvas}
+                  className="flex-1 p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white"
+                  title="Compartilhar"
+                >
+                  <Share2 className="w-4 h-4 mx-auto" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Instrução visual */}
+          <div className="p-3 rounded-lg bg-black/30 text-xs text-white/80 text-center border border-white/10">
+            <p className="mb-2"><strong>Dicas de uso:</strong></p>
+            <p className="mb-1">• Use &quot;Conectar&quot; para ligar elementos</p>
+            <p className="mb-1">• Duplo clique em textos para editar</p>
+            <p className="mb-1">• Arraste para mover elementos</p>
+            <p>• Ctrl+C/V para copiar/colar</p>
           </div>
         </div>
       </div>
 
-      {/* Canvas Area */}
+      {/* Área do Canvas */}
       <div className="flex-1 relative overflow-hidden">
+        {/* Barra superior com zoom */}
+        <div className="absolute top-4 left-4 right-4 z-10">
+          <div className="flex justify-between items-center">
+            <div className="bg-black/40 backdrop-blur-xl rounded-lg px-4 py-2 border border-white/10">
+              <span className="text-white text-sm">
+                Ferramenta: {basicTools.concat(shapeTools, umlTools, uiTools, serviceTools).find(t => t.id === currentTool)?.label}
+              </span>
+            </div>
+            <div className="bg-black/40 backdrop-blur-xl rounded-lg px-4 py-2 border border-white/10">
+              <span className="text-white text-sm">Zoom: {zoom}%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Canvas */}
         <canvas
           ref={canvasRef}
-          className="border-none outline-none cursor-crosshair"
+          className={`border-none outline-none ${currentTool === 'pen' ? 'cursor-crosshair' : 'cursor-default'}`}
         />
         
-        {/* Status bar */}
-        <div className="absolute bottom-4 left-4 floating-panel px-3 py-2">
-          <span className="text-xs" style={{color: 'var(--text-secondary)'}}>
-            Ferramenta: {basicTools.concat(shapeTools, umlTools, uiTools, serviceTools).find(t => t.id === currentTool)?.label}
-          </span>
-        </div>
+        {/* Indicador de conexão */}
+        {isConnecting && (
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-lg">
+            Clique no elemento de destino para conectar
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default DrawingCanvas;
+export default AdvancedDrawingCanvas;
