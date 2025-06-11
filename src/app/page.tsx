@@ -1,103 +1,110 @@
-import Image from "next/image";
+'use client';
+import { useState, useEffect } from 'react';
+import CodeMirror from '@uiw/react-codemirror';
+import { javascript } from '@codemirror/lang-javascript';
+import { python } from '@codemirror/lang-python';
+import { markdown } from '@codemirror/lang-markdown';
+
+interface Block {
+  id: number;
+  type: 'text' | 'code';
+  content: string;
+  filename: string;
+}
+
+const initialBlocks: Block[] = [
+  { id: 1, type: 'text', content: '', filename: '' },
+];
+
+function getLanguage(filename: string) {
+  if (filename.endsWith('.js') || filename.endsWith('.jsx')) return javascript();
+  if (filename.endsWith('.ts') || filename.endsWith('.tsx')) return javascript();
+  if (filename.endsWith('.py')) return python();
+  if (filename.endsWith('.md')) return markdown();
+  return javascript();
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+  // Limpeza diária automática às 00h
+  useEffect(() => {
+    const now = new Date();
+    const last = localStorage.getItem('lastClean');
+    if (!last || new Date(last).getDate() !== now.getDate()) {
+      setBlocks(initialBlocks);
+      localStorage.setItem('lastClean', now.toISOString());
+    }
+    const msToMidnight =
+      new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime();
+    const timer = setTimeout(() => {
+      setBlocks(initialBlocks);
+      localStorage.setItem('lastClean', new Date().toISOString());
+    }, msToMidnight);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Limpar manualmente
+  const handleClear = () => {
+    setBlocks(initialBlocks);
+    localStorage.setItem('lastClean', new Date().toISOString());
+  };
+
+  // Adicionar bloco
+  const addBlock = (type: 'text' | 'code') => {
+    setBlocks([
+      ...blocks,
+      { id: Date.now(), type, content: '', filename: '' },
+    ]);
+  };
+
+  // Atualizar bloco
+  const updateBlock = (id: number, content: string, filename?: string) => {
+    setBlocks(blocks.map(b => b.id === id ? { ...b, content, filename: filename ?? b.filename } : b));
+  };
+
+  return (
+    <section>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="gradient-text text-3xl font-bold">Editor ctrlC</h1>
+        <button className="glass px-4 py-2 rounded-lg hover:opacity-80 transition" onClick={handleClear}>
+          Limpar Tudo
+        </button>
+      </div>
+      <div className="space-y-6">
+        {blocks.map((block) => (
+          <div key={block.id} className="glass p-4">
+            {block.type === 'text' ? (
+              <textarea
+                className="w-full bg-transparent outline-none resize-none text-lg"
+                placeholder="Digite aqui..."
+                value={block.content}
+                onChange={e => updateBlock(block.id, e.target.value)}
+              />
+            ) : (
+              <div>
+                <input
+                  className="w-full bg-transparent outline-none text-sm mb-2 font-mono"
+                  placeholder="Nome do arquivo (ex: index.tsx)"
+                  value={block.filename}
+                  onChange={e => updateBlock(block.id, block.content, e.target.value)}
+                />
+                <CodeMirror
+                  value={block.content}
+                  height="200px"
+                  extensions={[getLanguage(block.filename)]}
+                  onChange={(value) => updateBlock(block.id, value)}
+                  theme="dark"
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-4 mt-8">
+        <button className="glass px-4 py-2 rounded-lg" onClick={() => addBlock('text')}>Adicionar Texto</button>
+        <button className="glass px-4 py-2 rounded-lg" onClick={() => addBlock('code')}>Adicionar Código</button>
+      </div>
+    </section>
   );
 }

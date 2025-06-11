@@ -1,3 +1,27 @@
+# ctrlC
+
+Aplicação Next.js com TypeScript e TailwindCSS, design glassmorphism (blur, fundo preto com roxo em degradê).
+
+## Funcionalidades
+- Área ctrlC: editor de texto/código com blocos nomeados, autoformatação, limpeza diária às 00h e botão para limpar.
+- Área de desenho: estilo Whimsical/Miro, modo claro/escuro, traçado inteligente, criação de texto com duplo clique, atalhos para componentes (BD, mobile, UI blocks).
+
+Pronto para deploy na Vercel.
+
+## Scripts
+- `npm run dev` — inicia o servidor de desenvolvimento
+- `npm run build` — build de produção
+- `npm run start` — inicia o servidor de produção
+
+## Customização
+- UI moderna com glassmorphism
+- Editor de código com blocos nomeados
+- Área de desenho colaborativa
+
+---
+
+Desenvolvido rapidamente com foco em produtividade e design elegante.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

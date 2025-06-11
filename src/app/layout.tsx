@@ -1,16 +1,6 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -23,11 +13,52 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+    <html lang="pt-br">
+      <body className="bg-black bg-gradient-to-br from-[#0f001a] to-[#2d0036] min-h-screen text-white">
+        {/* --- Navegação principal --- */}
+        <nav className="flex justify-center gap-6 py-6">
+          <Link
+            href="/"
+            className="gradient-text text-2xl font-bold"
+          >
+            ctrlC
+          </Link>
+          <Link
+            href="/draw"
+            className="glass px-4 py-2 rounded-lg hover:opacity-80 transition"
+          >
+            Área de Desenho
+          </Link>
+        </nav>
+        <main className="max-w-5xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row w-full h-screen">
+            <nav className="glass flex md:flex-col items-center justify-between md:justify-start md:w-24 w-full h-16 md:h-full p-2 md:py-8">
+              <Link
+                href="/"
+                className="gradient-text font-bold text-xl md:mb-8"
+              >
+                ctrlC
+              </Link>
+              <div className="flex md:flex-col gap-2">
+                <Link
+                  href="/"
+                  className="glass px-4 py-2 rounded-lg hover:bg-purple-900/40 transition"
+                >
+                  Editor
+                </Link>
+                <Link
+                  href="/draw"
+                  className="glass px-4 py-2 rounded-lg hover:bg-purple-900/40 transition"
+                >
+                  Desenho
+                </Link>
+              </div>
+            </nav>
+            <section className="flex-1 flex flex-col overflow-auto">
+              {children}
+            </section>
+          </div>
+        </main>
       </body>
     </html>
   );
