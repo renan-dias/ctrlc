@@ -227,11 +227,11 @@ export default function DashboardPage() {
               <h2 className="text-lg font-bold mb-2">Novo Projeto</h2>
               <label className="flex items-center gap-2">
                 <input type="radio" checked={newProjectType === 'figma'} onChange={() => setNewProjectType('figma')} />
-                Figma (vetorial)
+                Desenho/Diagrama
               </label>
               <label className="flex items-center gap-2">
                 <input type="radio" checked={newProjectType === 'canvas'} onChange={() => setNewProjectType('canvas')} />
-                Canvas (livre)
+                Texto/Código
               </label>
               <button onClick={createNewProject} className="bg-blue-600 text-white rounded-lg py-2 font-medium mt-4">Criar</button>
               <button onClick={() => setCreating(false)} className="text-gray-500 mt-2">Cancelar</button>

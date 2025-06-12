@@ -34,7 +34,7 @@ export default function LoginPage() {
 
   const handleProjectAccess = () => {
     if (projectCode.trim()) {
-      router.push(`/project/${projectCode.trim()}`);
+      router.push(`/public/${projectCode.trim()}`);
     }
   };
 

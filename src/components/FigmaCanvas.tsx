@@ -24,6 +24,7 @@ export type Tool =
   | 'rectangle' 
   | 'circle' 
   | 'text'
+  | 'code'
   | 'arrow'
   | 'uml-class'
   | 'uml-interface';
@@ -34,7 +35,7 @@ interface FigmaCanvasProps {
 
 interface DrawingElement {
   id: string;
-  type: string;
+  type: Tool;
   x: number;
   y: number;
   width: number;
@@ -276,16 +277,33 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
 
   // Criar novo elemento
   const createNewElement = (x: number, y: number) => {
+    if (currentTool === 'text' || currentTool === 'code') {
+      const newElement: DrawingElement = {
+        id: Date.now().toString(),
+        type: currentTool,
+        x,
+        y,
+        width: 220,
+        height: 60,
+        data: { text: '' }
+      };
+      setElements(prev => [...prev, newElement]);
+      setSelectedElement(newElement.id);
+      setEditingBlockId(newElement.id);
+      setEditingValue('');
+      return;
+    }
+
     const newElement: DrawingElement = {
       id: Date.now().toString(),
       type: currentTool,
       x,
       y,
-      width: currentTool === 'text' ? 100 : 120,
-      height: currentTool === 'text' ? 20 : currentTool === 'uml-class' ? 120 : 80,
+      width: (currentTool === 'text' || currentTool === 'code') ? 100 : 120,
+      height: (currentTool === 'text' || currentTool === 'code') ? 20 : currentTool === 'uml-class' ? 120 : 80,
       data: {
-        fill: currentTool === 'text' ? undefined : 'transparent',
-        text: currentTool === 'text' ? 'Clique para editar' : undefined
+        fill: (currentTool === 'text' || currentTool === 'code') ? undefined : 'transparent',
+        text: (currentTool === 'text' || currentTool === 'code') ? 'Clique para editar' : undefined
       }
     };
 
@@ -337,32 +355,8 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
 
   // Adiciona suporte a blocos de texto/código editáveis
   const renderBlock = (element: DrawingElement) => {
-    if (editingBlockId === element.id) {
-      return (
-        <textarea
-          ref={textareaRef}
-          className="absolute z-20 bg-white/90 text-black border border-blue-400 rounded p-2 shadow-lg"
-          style={{
-            left: element.x * (zoom / 100) + panOffset.x,
-            top: element.y * (zoom / 100) + panOffset.y,
-            width: element.width * (zoom / 100),
-            height: element.height * (zoom / 100),
-          }}
-          value={editingValue}
-          onChange={e => setEditingValue(e.target.value)}
-          onBlur={() => {
-            setElements(prev => prev.map(el => el.id === element.id ? { ...el, data: { ...el.data, text: editingValue } } : el));
-            setEditingBlockId(null);
-          }}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              textareaRef.current?.blur();
-            }
-          }}
-          autoFocus
-        />
-      );
-    }
+    const [dragging, setDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     return (
       <div
         className={`absolute z-10 select-none ${selectedElement === element.id ? 'ring-2 ring-blue-400' : ''}`}
@@ -377,7 +371,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
           padding: 8,
           fontFamily: element.type === 'code' ? 'monospace' : 'inherit',
           fontSize: 16,
-          cursor: 'pointer',
+          cursor: dragging ? 'grabbing' : 'grab',
           overflow: 'auto',
         }}
         onDoubleClick={() => {
@@ -385,6 +379,17 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
           setEditingValue(typeof element.data.text === 'string' ? element.data.text : '');
         }}
         onClick={() => setSelectedElement(element.id)}
+        onMouseDown={e => {
+          setDragging(true);
+          setDragStart({ x: e.clientX, y: e.clientY });
+        }}
+        onMouseUp={e => setDragging(false)}
+        onMouseMove={e => {
+          if (dragging) {
+            handleBlockDrag(element.id, (e.clientX - dragStart.x) / (zoom / 100), (e.clientY - dragStart.y) / (zoom / 100));
+            setDragStart({ x: e.clientX, y: e.clientY });
+          }
+        }}
       >
         {element.type === 'code' ? (
           <pre style={{ margin: 0 }}>{typeof element.data.text === 'string' ? element.data.text : 'Seu código...'}</pre>
@@ -404,6 +409,11 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
         </button>
       </div>
     );
+  };
+
+  // Permite arrastar blocos de texto/código
+  const handleBlockDrag = (id: string, dx: number, dy: number) => {
+    setElements(prev => prev.map(el => el.id === id ? { ...el, x: el.x + dx, y: el.y + dy } : el));
   };
 
   // Renderização dos blocos sobre o canvas
@@ -452,6 +462,17 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
           <Settings className="w-5 h-5" />
         </button>
       </div>
+
+      {/* Modal de configurações */}
+      {showConfig && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-8 w-full max-w-xs flex flex-col gap-4">
+            <h2 className="text-lg font-bold mb-2">Configurações do Projeto</h2>
+            {/* Adicione campos de configuração aqui */}
+            <button onClick={() => setShowConfig(false)} className="text-gray-500 mt-2">Fechar</button>
+          </div>
+        </div>
+      )}
 
       {/* Área principal do canvas */}
       <div className="flex-1 flex flex-col">
@@ -533,17 +554,6 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
           </div>
         </div>
       </div>
-
-      {/* Modal de configurações */}
-      {showConfig && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 w-full max-w-xs flex flex-col gap-4">
-            <h2 className="text-lg font-bold mb-2">Configurações do Projeto</h2>
-            {/* Adicione campos de configuração aqui */}
-            <button onClick={() => setShowConfig(false)} className="text-gray-500 mt-2">Fechar</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
