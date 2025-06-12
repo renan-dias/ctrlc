@@ -137,7 +137,6 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
           ctx.fillRect(element.x, element.y, element.width, element.height);
         }
         break;
-
       case 'circle':
         ctx.beginPath();
         ctx.arc(
@@ -152,13 +151,14 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
           ctx.fill();
         }
         break;
-
       case 'text':
         ctx.font = '16px Inter, sans-serif';
         ctx.fillStyle = '#ffffff';
         ctx.fillText(typeof element.data?.text === 'string' ? element.data.text : 'Texto', element.x, element.y);
         break;
-
+      case 'code':
+        // Não desenha nada no canvas, bloco é renderizado por cima
+        break;
       case 'uml-class':
         drawUMLClass(ctx, element);
         break;
@@ -277,7 +277,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
 
   // Criar novo elemento
   const createNewElement = (x: number, y: number) => {
-    if (currentTool === 'text' || currentTool === 'code') {
+    if ((currentTool as string) === 'text' || (currentTool as string) === 'code') {
       const newElement: DrawingElement = {
         id: Date.now().toString(),
         type: currentTool,
@@ -294,16 +294,17 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
       return;
     }
 
+    const isTextOrCode = (currentTool as string) === 'text' || (currentTool as string) === 'code';
     const newElement: DrawingElement = {
       id: Date.now().toString(),
       type: currentTool,
       x,
       y,
-      width: (currentTool === 'text' || currentTool === 'code') ? 100 : 120,
-      height: (currentTool === 'text' || currentTool === 'code') ? 20 : currentTool === 'uml-class' ? 120 : 80,
+      width: isTextOrCode ? 100 : 120,
+      height: isTextOrCode ? 20 : currentTool === 'uml-class' ? 120 : 80,
       data: {
-        fill: (currentTool === 'text' || currentTool === 'code') ? undefined : 'transparent',
-        text: (currentTool === 'text' || currentTool === 'code') ? 'Clique para editar' : undefined
+        fill: isTextOrCode ? undefined : 'transparent',
+        text: isTextOrCode ? 'Clique para editar' : undefined
       }
     };
 
@@ -465,8 +466,8 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
 
       {/* Modal de configurações */}
       {showConfig && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 w-full max-w-xs flex flex-col gap-4">
+        <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center">
+          <div className="bg-white rounded-xl p-8 w-full max-w-xs flex flex-col gap-4 shadow-2xl">
             <h2 className="text-lg font-bold mb-2">Configurações do Projeto</h2>
             {/* Adicione campos de configuração aqui */}
             <button onClick={() => setShowConfig(false)} className="text-gray-500 mt-2">Fechar</button>

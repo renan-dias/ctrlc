@@ -17,7 +17,10 @@ export default function LoginPage() {
     if (user && !authLoading) {
       router.push('/dashboard');
     }
-  }, [user, authLoading, router]);
+    if (!user && projectCode) {
+      router.push(`/public/${projectCode}`);
+    }
+  }, [user, authLoading, router, projectCode]);
 
   // handleGoogleLogin: tipa err como unknown
   const handleGoogleLogin = async () => {
@@ -28,7 +31,8 @@ export default function LoginPage() {
         setErrorMsg('Falha ao autenticar. Tente novamente.');
       }
     } catch (err) {
-      setErrorMsg((err as Error)?.message || 'Erro desconhecido ao autenticar.');
+      if (err instanceof Error) setErrorMsg(err.message);
+      else setErrorMsg('Erro desconhecido ao autenticar.');
     }
   };
 
