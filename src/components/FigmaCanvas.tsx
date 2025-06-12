@@ -109,7 +109,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
     });
 
     ctx.restore();
-  }, [elements, zoom, panOffset]);
+  }, [elements, selectedElement, selectedColor, zoom, panOffset]);
 
   // Desenhar grid
   const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -135,7 +135,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
   };
 
   // Desenhar elemento individual
-  const drawElement = (ctx: CanvasRenderingContext2D, element: DrawingElement) => {
+  const drawElement = useCallback((ctx: CanvasRenderingContext2D, element: DrawingElement) => {
     ctx.strokeStyle = selectedElement === element.id ? '#3b82f6' : selectedColor;
     ctx.lineWidth = 2;
     ctx.fillStyle = typeof element.data?.fill === 'string' ? element.data.fill : 'transparent';
@@ -173,7 +173,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
         drawUMLClass(ctx, element);
         break;
     }
-  };
+  }, [selectedElement, selectedColor]);
 
   // Desenhar classe UML
   const drawUMLClass = (ctx: CanvasRenderingContext2D, element: DrawingElement) => {
