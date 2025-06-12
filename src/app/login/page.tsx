@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthState, useSignInWithGoogle } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import Image from 'next/image';
-import { Search, Github } from 'lucide-react';
+import { Search } from 'lucide-react';
 
 export default function LoginPage() {
   const [signInWithGoogle, , loading] = useSignInWithGoogle(auth);

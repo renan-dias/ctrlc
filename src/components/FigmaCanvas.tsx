@@ -10,13 +10,10 @@ import {
   ArrowUpRight,
   Download,
   Share2,
-  Undo,
-  Redo,
   Trash2,
   ZoomIn,
   ZoomOut,
   Move,
-  Copy,
   RotateCcw
 } from 'lucide-react';
 
@@ -41,7 +38,7 @@ interface DrawingElement {
   y: number;
   width: number;
   height: number;
-  data: any;
+  data: Record<string, unknown>; // Corrigido: não usar 'any'
 }
 
 const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
@@ -141,12 +138,12 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
   const drawElement = (ctx: CanvasRenderingContext2D, element: DrawingElement) => {
     ctx.strokeStyle = selectedElement === element.id ? '#3b82f6' : selectedColor;
     ctx.lineWidth = 2;
-    ctx.fillStyle = element.data?.fill || 'transparent';
+    ctx.fillStyle = typeof element.data?.fill === 'string' ? element.data.fill : 'transparent';
 
     switch (element.type) {
       case 'rectangle':
         ctx.strokeRect(element.x, element.y, element.width, element.height);
-        if (element.data?.fill) {
+        if (typeof element.data?.fill === 'string' && element.data.fill) {
           ctx.fillRect(element.x, element.y, element.width, element.height);
         }
         break;
@@ -161,7 +158,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
           2 * Math.PI
         );
         ctx.stroke();
-        if (element.data?.fill) {
+        if (typeof element.data?.fill === 'string' && element.data.fill) {
           ctx.fill();
         }
         break;
@@ -169,7 +166,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
       case 'text':
         ctx.font = '16px Inter, sans-serif';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(element.data?.text || 'Texto', element.x, element.y);
+        ctx.fillText(typeof element.data?.text === 'string' ? element.data.text : 'Texto', element.x, element.y);
         break;
 
       case 'uml-class':
@@ -206,7 +203,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
   };
 
   // Handlers de eventos do mouse
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
@@ -235,7 +232,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
     setIsDrawing(true);
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
 
     if (isDragging && currentTool === 'select') {

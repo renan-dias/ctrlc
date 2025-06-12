@@ -8,9 +8,7 @@ import {
   Share2, 
   Users, 
   Settings, 
-  Home, 
   Save,
-  Download,
   ArrowLeft,
   Copy,
   Check
