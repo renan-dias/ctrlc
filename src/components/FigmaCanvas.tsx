@@ -14,7 +14,8 @@ import {
   ZoomIn,
   ZoomOut,
   Move,
-  RotateCcw
+  RotateCcw,
+  Settings
 } from 'lucide-react';
 
 export type Tool = 
@@ -44,6 +45,7 @@ interface DrawingElement {
 const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   // Estados principais
   const [currentTool, setCurrentTool] = useState<Tool>('select');
@@ -57,6 +59,16 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  // Estado para preview da forma
+  const [previewElement, setPreviewElement] = useState<DrawingElement | null>(null);
+
+  // Modal de configurações
+  const [showConfig, setShowConfig] = useState(false);
+
+  // Estado para edição de blocos
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState('');
 
   // Inicializar canvas
   useEffect(() => {
@@ -107,9 +119,10 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
     elements.forEach(element => {
       drawElement(ctx, element);
     });
+    if (previewElement) drawElement(ctx, previewElement);
 
     ctx.restore();
-  }, [elements, selectedElement, selectedColor, zoom, panOffset]);
+  }, [elements, selectedElement, selectedColor, zoom, panOffset, previewElement]);
 
   // Desenhar grid
   const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -234,6 +247,14 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = (e.clientX - rect.left - panOffset.x) / (zoom / 100);
+    const y = (e.clientY - rect.top - panOffset.y) / (zoom / 100);
+    if (currentTool !== 'select' && elements.length > 0 && isDrawing) {
+      const last = elements[elements.length - 1];
+      setPreviewElement({ ...last, width: x - last.x, height: y - last.y });
+    }
 
     if (isDragging && currentTool === 'select') {
       // Pan do canvas
@@ -248,6 +269,10 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
   const handleMouseUp = () => {
     setIsDrawing(false);
     setIsDragging(false);
+    if (previewElement) {
+      setElements(prev => prev.map(el => el.id === previewElement.id ? previewElement : el));
+      setPreviewElement(null);
+    }
   };
 
   // Criar novo elemento
@@ -297,18 +322,97 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
   // Definição das ferramentas
   const tools = [
     { id: 'select', icon: Mouse, label: 'Selecionar' },
-    { id: 'pen', icon: Pencil, label: 'Desenho' },
     { id: 'rectangle', icon: Square, label: 'Retângulo' },
     { id: 'circle', icon: Circle, label: 'Círculo' },
-    { id: 'text', icon: Type, label: 'Texto' },
     { id: 'arrow', icon: ArrowUpRight, label: 'Seta' },
     { id: 'uml-class', icon: Square, label: 'Classe UML' },
+    { id: 'uml-interface', icon: Square, label: 'Interface UML' },
+    { id: 'text', icon: Type, label: 'Texto' },
+    { id: 'code', icon: Pencil, label: 'Código' },
   ];
 
   const colors = [
     '#6366f1', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
     '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6b7280', '#000000'
   ];
+
+  // Adiciona suporte a blocos de texto/código editáveis
+  const renderBlock = (element: DrawingElement) => {
+    if (editingBlockId === element.id) {
+      return (
+        <textarea
+          ref={textareaRef}
+          className="absolute z-20 bg-white/90 text-black border border-blue-400 rounded p-2 shadow-lg"
+          style={{
+            left: element.x * (zoom / 100) + panOffset.x,
+            top: element.y * (zoom / 100) + panOffset.y,
+            width: element.width * (zoom / 100),
+            height: element.height * (zoom / 100),
+          }}
+          value={editingValue}
+          onChange={e => setEditingValue(e.target.value)}
+          onBlur={() => {
+            setElements(prev => prev.map(el => el.id === element.id ? { ...el, data: { ...el.data, text: editingValue } } : el));
+            setEditingBlockId(null);
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              textareaRef.current?.blur();
+            }
+          }}
+          autoFocus
+        />
+      );
+    }
+    return (
+      <div
+        className={`absolute z-10 select-none ${selectedElement === element.id ? 'ring-2 ring-blue-400' : ''}`}
+        style={{
+          left: element.x * (zoom / 100) + panOffset.x,
+          top: element.y * (zoom / 100) + panOffset.y,
+          width: element.width * (zoom / 100),
+          height: element.height * (zoom / 100),
+          background: 'rgba(255,255,255,0.85)',
+          color: '#222',
+          borderRadius: 6,
+          padding: 8,
+          fontFamily: element.type === 'code' ? 'monospace' : 'inherit',
+          fontSize: 16,
+          cursor: 'pointer',
+          overflow: 'auto',
+        }}
+        onDoubleClick={() => {
+          setEditingBlockId(element.id);
+          setEditingValue(typeof element.data.text === 'string' ? element.data.text : '');
+        }}
+        onClick={() => setSelectedElement(element.id)}
+      >
+        {element.type === 'code' ? (
+          <pre style={{ margin: 0 }}>{typeof element.data.text === 'string' ? element.data.text : 'Seu código...'}</pre>
+        ) : (
+          <span>{typeof element.data.text === 'string' ? element.data.text : 'Seu texto...'}</span>
+        )}
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            setElements(prev => prev.filter(el => el.id !== element.id));
+            setSelectedElement(null);
+          }}
+          className="absolute top-1 right-1 p-1 text-xs text-red-500 bg-white/80 rounded hover:bg-red-100"
+          title="Deletar bloco"
+        >
+          ×
+        </button>
+      </div>
+    );
+  };
+
+  // Renderização dos blocos sobre o canvas
+  const renderBlocks = () => (
+    <>
+      {elements.filter(el => el.type === 'text' || el.type === 'code').map(renderBlock)}
+    </>
+  );
 
   return (
     <div className="flex h-screen bg-gray-900">
@@ -344,6 +448,10 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
             />
           ))}
         </div>
+
+        <button onClick={() => setShowConfig(true)} className="p-2 mt-2 bg-gray-700 rounded text-white" title="Configurações">
+          <Settings className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Área principal do canvas */}
@@ -396,6 +504,7 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
             onMouseUp={handleMouseUp}
             className="absolute inset-0 cursor-crosshair"
           />
+          {renderBlocks()}
         </div>
 
         {/* Controls bar */}
@@ -425,6 +534,17 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
           </div>
         </div>
       </div>
+
+      {/* Modal de configurações */}
+      {showConfig && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-8 w-full max-w-xs flex flex-col gap-4">
+            <h2 className="text-lg font-bold mb-2">Configurações do Projeto</h2>
+            {/* Adicione campos de configuração aqui */}
+            <button onClick={() => setShowConfig(false)} className="text-gray-500 mt-2">Fechar</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

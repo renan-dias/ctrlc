@@ -16,12 +16,28 @@ import {
   Star,
 } from 'lucide-react';
 import Image from 'next/image';
+import { db } from '@/lib/firebase';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  updateDoc,
+  doc,
+  serverTimestamp,
+  getDoc,
+} from 'firebase/firestore';
 
 interface Project {
   id: string;
   name: string;
   code: string;
-  lastModified: Date;
+  owner: string;
+  type: 'figma' | 'canvas';
+  lastModified?: Date;
+  createdAt?: Date;
   thumbnail?: string;
   isStarred?: boolean;
   collaborators?: number;
@@ -31,55 +47,76 @@ export default function DashboardPage() {
   const [user, loading] = useAuthState(auth);
   const [projects, setProjects] = useState<Project[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [newProjectType, setNewProjectType] = useState<'figma' | 'canvas'>('figma');
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const router = useRouter();
 
+  // Buscar projetos do usuário logado
   useEffect(() => {
+    if (!loading && user) {
+      const fetchProjects = async () => {
+        const q = query(collection(db, 'projects'), where('owner', '==', user.uid));
+        const snap = await getDocs(q);
+        const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Project[];
+        setProjects(data);
+      };
+      fetchProjects();
+    }
     if (!loading && !user) {
       router.push('/login');
     }
   }, [user, loading, router]);
 
-  useEffect(() => {
-    // Mock projects - substituir por dados do Firebase
-    setProjects([
-      {
-        id: '1',
-        name: 'Sistema de E-commerce',
-        code: 'EC2024',
-        lastModified: new Date(Date.now() - 86400000),
-        isStarred: true,
-        collaborators: 3
-      },
-      {
-        id: '2',
-        name: 'App Mobile - UML',
-        code: 'MOB001',
-        lastModified: new Date(Date.now() - 172800000),
-        collaborators: 1
-      },
-      {
-        id: '3',
-        name: 'Dashboard Analytics',
-        code: 'DASH01',
-        lastModified: new Date(Date.now() - 259200000),
-        isStarred: false,
-        collaborators: 5
-      }
-    ]);
-  }, []);
+  // Criar novo projeto
+  const createNewProject = async () => {
+    if (!user) return;
+    setCreating(true);
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const docRef = await addDoc(collection(db, 'projects'), {
+      name: 'Projeto Sem Nome',
+      code,
+      owner: user.uid,
+      type: newProjectType,
+      createdAt: serverTimestamp(),
+      lastModified: serverTimestamp(),
+    });
+    setCreating(false);
+    router.push(`/project/${code}?new=true`);
+  };
+
+  // Apagar projeto
+  const deleteProject = async (id: string) => {
+    await deleteDoc(doc(db, 'projects', id));
+    setProjects(projects.filter(p => p.id !== id));
+  };
+
+  // Duplicar projeto
+  const duplicateProject = async (project: Project) => {
+    if (!user) return;
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    await addDoc(collection(db, 'projects'), {
+      ...project,
+      id: undefined,
+      code,
+      name: `${project.name} (Cópia)`,
+      createdAt: serverTimestamp(),
+      lastModified: serverTimestamp(),
+    });
+  };
+
+  // Renomear projeto
+  const renameProject = async (id: string, name: string) => {
+    await updateDoc(doc(db, 'projects', id), { name, lastModified: serverTimestamp() });
+    setProjects(projects.map(p => p.id === id ? { ...p, name } : p));
+    setRenamingId(null);
+    setRenameValue('');
+  };
 
   const handleLogout = async () => {
     await signOut(auth);
     router.push('/login');
-  };
-
-  const createNewProject = () => {
-    const code = generateProjectCode();
-    router.push(`/project/${code}?new=true`);
-  };
-
-  const generateProjectCode = () => {
-    return Math.random().toString(36).substr(2, 6).toUpperCase();
   };
 
   const filteredProjects = projects.filter(project =>
@@ -198,6 +235,25 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Modal de novo projeto */}
+        {creating && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-8 w-full max-w-xs flex flex-col gap-4">
+              <h2 className="text-lg font-bold mb-2">Novo Projeto</h2>
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={newProjectType === 'figma'} onChange={() => setNewProjectType('figma')} />
+                Figma (vetorial)
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={newProjectType === 'canvas'} onChange={() => setNewProjectType('canvas')} />
+                Canvas (livre)
+              </label>
+              <button onClick={createNewProject} className="bg-blue-600 text-white rounded-lg py-2 font-medium mt-4">Criar</button>
+              <button onClick={() => setCreating(false)} className="text-gray-500 mt-2">Cancelar</button>
+            </div>
+          </div>
+        )}
+
         {/* Projects Grid */}
         {filteredProjects.length === 0 ? (
           <div className="text-center py-12">
@@ -226,72 +282,33 @@ export default function DashboardPage() {
             {filteredProjects.map((project) => (
               <div
                 key={project.id}
-                className="group bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 overflow-hidden hover:bg-white/15 transition-all cursor-pointer"
-                onClick={() => router.push(`/project/${project.code}`)}
+                className="group bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 overflow-hidden hover:bg-white/15 transition-all cursor-pointer relative"
               >
-                {/* Thumbnail */}
-                <div className="aspect-video bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-                  {project.thumbnail ? (
-                    <Image
-                      src={project.thumbnail}
-                      alt={project.name}
-                      width={300}
-                      height={200}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <FolderOpen className="w-12 h-12 text-white/50" />
-                  )}
-                </div>
-
-                {/* Content */}
-                <div className="p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-medium text-white group-hover:text-blue-300 transition-colors truncate">
-                      {project.name}
-                    </h3>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Toggle star
-                      }}
-                      className="p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Star 
-                        className={`w-4 h-4 ${
-                          project.isStarred 
-                            ? 'text-yellow-400 fill-current' 
-                            : 'text-gray-400 hover:text-yellow-400'
-                        }`} 
+                <div className="p-4" onClick={() => router.push(`/project/${project.code}`)}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Image src="/logo.png" alt="thumb" width={32} height={32} className="rounded" />
+                    {renamingId === project.id ? (
+                      <input
+                        value={renameValue}
+                        onChange={e => setRenameValue(e.target.value)}
+                        onBlur={() => renameProject(project.id, renameValue)}
+                        onKeyDown={e => e.key === 'Enter' && renameProject(project.id, renameValue)}
+                        className="bg-white/20 border border-white/30 rounded px-2 py-1 text-white"
+                        autoFocus
                       />
-                    </button>
+                    ) : (
+                      <span className="font-bold text-white group-hover:text-blue-300 transition-colors truncate">
+                        {project.name}
+                      </span>
+                    )}
                   </div>
-
-                  <div className="flex items-center gap-4 text-sm text-gray-400 mb-3">
-                    <span className="font-mono bg-white/10 px-2 py-1 rounded text-xs">
-                      {project.code}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {formatDate(project.lastModified)}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1 text-sm text-gray-400">
-                      <Users className="w-4 h-4" />
-                      {project.collaborators || 1}
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Show menu
-                      }}
-                      className="p-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <div className="text-xs text-gray-300 mb-1">Código: <span className="font-mono">{project.code}</span></div>
+                  <div className="text-xs text-gray-400">Tipo: {project.type === 'figma' ? 'Figma' : 'Canvas'}</div>
+                </div>
+                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={e => { e.stopPropagation(); setRenamingId(project.id); setRenameValue(project.name); }} title="Renomear" className="p-1 bg-white/20 rounded hover:bg-blue-500 text-white text-xs">✏️</button>
+                  <button onClick={e => { e.stopPropagation(); duplicateProject(project); }} title="Duplicar" className="p-1 bg-white/20 rounded hover:bg-green-500 text-white text-xs">⧉</button>
+                  <button onClick={e => { e.stopPropagation(); deleteProject(project.id); }} title="Apagar" className="p-1 bg-white/20 rounded hover:bg-red-500 text-white text-xs">🗑️</button>
                 </div>
               </div>
             ))}

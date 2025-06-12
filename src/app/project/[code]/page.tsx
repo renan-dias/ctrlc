@@ -2,8 +2,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import FigmaCanvas from '@/components/FigmaCanvas';
+import DrawingCanvasNew from '@/components/DrawingCanvasNew';
 import { 
   Share2, 
   Users, 
@@ -14,12 +15,14 @@ import {
   Check
 } from 'lucide-react';
 import Image from 'next/image';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface ProjectData {
   id: string;
   name: string;
   code: string;
   owner: string;
+  type: 'figma' | 'canvas';
   collaborators: string[];
   lastModified: Date;
 }
@@ -45,32 +48,32 @@ export default function ProjectPage() {
     }
 
     if (projectCode) {
-      // Em um app real, buscar dados do Firebase
-      if (isNewProject) {
-        const newProject: ProjectData = {
-          id: projectCode,
-          name: 'Projeto Sem Nome',
-          code: projectCode,
-          owner: user?.uid || '',
-          collaborators: [],
-          lastModified: new Date()
-        };
-        setProject(newProject);
-        setProjectName(newProject.name);
-        setIsEditingName(true);
-      } else {
-        // Buscar projeto existente
-        const mockProject: ProjectData = {
-          id: projectCode,
-          name: 'Sistema de E-commerce',
-          code: projectCode,
-          owner: user?.uid || '',
-          collaborators: [],
-          lastModified: new Date()
-        };
-        setProject(mockProject);
-        setProjectName(mockProject.name);
-      }
+      const fetchProject = async () => {
+        const ref = doc(db, 'projects', projectCode);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const data = snap.data() as ProjectData;
+          setProject(data);
+          setProjectName(data.name);
+        } else if (isNewProject) {
+          // Projeto novo (criado agora)
+          const newProject: ProjectData = {
+            id: projectCode,
+            name: 'Projeto Sem Nome',
+            code: projectCode,
+            owner: user?.uid || '',
+            type: 'figma',
+            collaborators: [],
+            lastModified: new Date()
+          };
+          setProject(newProject);
+          setProjectName(newProject.name);
+          setIsEditingName(true);
+        } else {
+          setProject(null);
+        }
+      };
+      fetchProject();
     }
   }, [projectCode, isNewProject, user, loading, router]);
 
@@ -83,7 +86,7 @@ export default function ProjectPage() {
   };
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/project/${projectCode}`;
+    const url = `${window.location.origin}/public/${projectCode}`;
     await navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -210,7 +213,11 @@ export default function ProjectPage() {
 
       {/* Canvas Area */}
       <div className="flex-1">
-        <FigmaCanvas projectCode={projectCode} />
+        {project?.type === 'canvas' ? (
+          <DrawingCanvasNew isDarkMode={false} />
+        ) : (
+          <FigmaCanvas projectCode={projectCode} />
+        )}
       </div>
     </div>
   );
