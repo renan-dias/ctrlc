@@ -8,12 +8,8 @@ import {
   Plus, 
   Search, 
   FolderOpen, 
-  Clock, 
-  Users, 
-  MoreVertical, 
   LogOut,
-  Settings,
-  Star,
+  Settings
 } from 'lucide-react';
 import Image from 'next/image';
 import { db } from '@/lib/firebase';
@@ -27,7 +23,6 @@ import {
   updateDoc,
   doc,
   serverTimestamp,
-  getDoc,
 } from 'firebase/firestore';
 
 interface Project {
@@ -74,7 +69,7 @@ export default function DashboardPage() {
     if (!user) return;
     setCreating(true);
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const docRef = await addDoc(collection(db, 'projects'), {
+    await addDoc(collection(db, 'projects'), {
       name: 'Projeto Sem Nome',
       code,
       owner: user.uid,
@@ -123,16 +118,6 @@ export default function DashboardPage() {
     project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     project.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const formatDate = (date: Date) => {
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 1) return 'Ontem';
-    if (diffDays < 7) return `${diffDays} dias atrás`;
-    return date.toLocaleDateString();
-  };
 
   if (loading) {
     return (

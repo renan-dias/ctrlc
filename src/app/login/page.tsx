@@ -19,6 +19,7 @@ export default function LoginPage() {
     }
   }, [user, authLoading, router]);
 
+  // handleGoogleLogin: tipa err como unknown
   const handleGoogleLogin = async () => {
     try {
       setErrorMsg(null);
@@ -26,8 +27,8 @@ export default function LoginPage() {
       if (!result) {
         setErrorMsg('Falha ao autenticar. Tente novamente.');
       }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Erro desconhecido ao autenticar.');
+    } catch (err) {
+      setErrorMsg((err as Error)?.message || 'Erro desconhecido ao autenticar.');
     }
   };
 

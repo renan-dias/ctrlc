@@ -14,7 +14,7 @@ interface ProjectData {
   code: string;
   owner: string;
   type: 'figma' | 'canvas';
-  lastModified: any;
+  lastModified: Date;
 }
 
 export default function PublicProjectPage() {

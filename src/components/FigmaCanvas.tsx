@@ -96,7 +96,6 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
     };
   }, []);
 
-  // Função para desenhar no canvas
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -123,29 +122,6 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
 
     ctx.restore();
   }, [elements, selectedElement, selectedColor, zoom, panOffset, previewElement]);
-
-  // Desenhar grid
-  const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    const gridSize = 20;
-    ctx.strokeStyle = '#1f2937';
-    ctx.lineWidth = 0.5;
-
-    // Linhas verticais
-    for (let x = 0; x < width; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-      ctx.stroke();
-    }
-
-    // Linhas horizontais
-    for (let y = 0; y < height; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-      ctx.stroke();
-    }
-  };
 
   // Desenhar elemento individual
   const drawElement = useCallback((ctx: CanvasRenderingContext2D, element: DrawingElement) => {
@@ -187,6 +163,29 @@ const FigmaCanvas: React.FC<FigmaCanvasProps> = ({ projectCode }) => {
         break;
     }
   }, [selectedElement, selectedColor]);
+
+  // Desenhar grid
+  const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    const gridSize = 20;
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 0.5;
+
+    // Linhas verticais
+    for (let x = 0; x < width; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+
+    // Linhas horizontais
+    for (let y = 0; y < height; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+  };
 
   // Desenhar classe UML
   const drawUMLClass = (ctx: CanvasRenderingContext2D, element: DrawingElement) => {
