@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [signInWithGoogle, , loading] = useSignInWithGoogle(auth);
   const [user, authLoading] = useAuthState(auth);
   const [projectCode, setProjectCode] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -19,7 +20,15 @@ export default function LoginPage() {
   }, [user, authLoading, router]);
 
   const handleGoogleLogin = async () => {
-    await signInWithGoogle();
+    try {
+      setErrorMsg(null);
+      const result = await signInWithGoogle();
+      if (!result) {
+        setErrorMsg('Falha ao autenticar. Tente novamente.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Erro desconhecido ao autenticar.');
+    }
   };
 
   const handleProjectAccess = () => {
@@ -48,6 +57,10 @@ export default function LoginPage() {
 
         {/* Login Card */}
         <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-8 shadow-2xl">
+          {errorMsg && (
+            <div className="mb-4 text-red-400 text-sm text-center">{errorMsg}</div>
+          )}
+
           {/* Quick Access */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-200 mb-2">
